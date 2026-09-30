@@ -1,13 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
-import { MobileNav } from "@/components/MobileNav";
 
 export const metadata: Metadata = {
   title: "Castellan",
   description:
-    "Read every document once, turn it into dated obligations, and know exactly what needs doing today. For UK landlords and any business that tracks documents and deadlines.",
+    "A multi-tenant operations platform: records, documents, dated obligations, teams, reminders and answers — shaped around your own data.",
 };
 
 export const viewport: Viewport = {
@@ -19,19 +16,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en-GB">
-      <body className="min-h-screen">
-        <div className="flex min-h-screen">
-          <div className="hidden md:flex">
-            <Suspense fallback={<div className="w-56 border-r border-rule bg-surface" />}>
-              <Sidebar />
-            </Suspense>
-          </div>
-          <main className="flex-1 pb-20 md:pb-0">{children}</main>
-        </div>
-        <Suspense fallback={null}>
-          <MobileNav />
-        </Suspense>
-      </body>
+      <body className="min-h-screen">{children}</body>
     </html>
   );
 }

@@ -69,20 +69,55 @@ export async function asService<T>(db: AnyPgDb, fn: (tx: Tx) => Promise<T>): Pro
   });
 }
 
-// --- Production driver (Supabase / any Postgres) ----------------------------
-// Lazily created so the app boots without a DB during the v1 demo phase.
+// --- Drivers ----------------------------------------------------------------
+// Production: postgres-js against Supabase (DATABASE_URL set), connecting as a
+// non-superuser role subject to RLS. Local dev: a file-backed PGlite so the full
+// platform runs with no external database, applying the same migrations + RLS.
 
-let _prodDb: AnyPgDb | null = null;
+let _db: AnyPgDb | null = null;
+let _init: Promise<AnyPgDb> | null = null;
 
-export async function getDb(): Promise<AnyPgDb> {
-  if (_prodDb) return _prodDb;
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set");
+async function initProd(url: string): Promise<AnyPgDb> {
   const [{ drizzle }, postgresMod] = await Promise.all([
     import("drizzle-orm/postgres-js"),
     import("postgres"),
   ]);
   const client = postgresMod.default(url, { prepare: false });
-  _prodDb = drizzle(client) as unknown as AnyPgDb;
-  return _prodDb;
+  return drizzle(client) as unknown as AnyPgDb;
+}
+
+async function initDevPglite(): Promise<AnyPgDb> {
+  const [{ PGlite }, { drizzle }, bootstrap] = await Promise.all([
+    import("@electric-sql/pglite"),
+    import("drizzle-orm/pglite"),
+    import("./bootstrap"),
+  ]);
+  const dir = process.env.CASTELLAN_DEV_DB_DIR || ".castellan-dev-db";
+  const pg = new PGlite(dir);
+  await pg.waitReady;
+  if (!(await bootstrap.isBootstrapped(pg))) {
+    await bootstrap.applyMigrationsAndRls(pg);
+  }
+  await bootstrap.ensureAppRole(pg);
+  // PGlite's login role is a superuser, so drop to app_user per transaction.
+  process.env.DB_LOCAL_ROLE = "app_user";
+  return drizzle(pg) as unknown as AnyPgDb;
+}
+
+/** Point getDb() at a specific database (tests only). */
+export function _setDbForTests(db: AnyPgDb | null): void {
+  _db = db;
+  _init = null;
+}
+
+/** The application database. Supabase in prod, PGlite for local dev. */
+export async function getDb(): Promise<AnyPgDb> {
+  if (_db) return _db;
+  if (_init) return _init;
+  const url = process.env.DATABASE_URL;
+  _init = (url ? initProd(url) : initDevPglite()).then((db) => {
+    _db = db;
+    return db;
+  });
+  return _init;
 }

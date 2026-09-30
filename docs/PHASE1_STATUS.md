@@ -29,7 +29,30 @@ automated tests; owner can invite a member with a role.** ✅ Met.
   cross-tenant insert (WITH CHECK), fail-closed with no scope, audit non-leakage
   + chain integrity, and the invite→accept→role acceptance test.
 
-**Tests:** 41 passing (32 rules engine + 9 isolation). Typecheck clean. App builds.
+- **UI + session middleware** (added): sign-up / sign-in / sign-out, workspace
+  onboarding (with template choice), workspace shell (`/w/[slug]`) with a
+  workspace switcher and route guard, members list + invite form + pending
+  invitations, and the invite-accept flow (`/invite/[token]`). Session is an
+  httpOnly cookie holding an opaque token whose SHA-256 is stored; `requireUser`
+  guards protected routes and redirects with a `next` return path. The v1 demo
+  screens moved under a `(demo)` route group with their own shell.
+- **Local dev database**: a file-backed PGlite (same migrations + rls.sql as
+  Supabase) so the whole platform runs with `npm run dev` and no external DB;
+  `getDb()` uses Supabase when `DATABASE_URL` is set. `/api/health` reports DB
+  connectivity.
+- **auth-flow integration test** (`test/auth-flow.test.ts`, 5 tests): sign up,
+  duplicate-email rejection, lockout, session create/resolve/revoke, workspace
+  onboarding, invite→accept with role, unique-slug collisions.
+
+**Tests:** 46 passing (32 rules engine + 9 isolation + 5 auth-flow). Typecheck
+clean. App builds. The full sign-up → workspace → invite → accept flow was also
+verified end-to-end in a real browser (Playwright); screenshots in
+`docs/screenshots/v2-*.png`.
+
+**Verified bug fixes during the UI build:** a `redirect()` inside a try/catch was
+swallowing `NEXT_REDIRECT` (invite accept now redirects outside the try); and
+`next start` forks multiple workers, which a file-backed PGlite can't share — use
+`npm run dev` locally (Supabase is shared, so production is unaffected).
 
 ## How to run
 
@@ -43,15 +66,12 @@ Production points `DATABASE_URL` at Supabase Postgres; the same migrations +
 `rls.sql` apply there. On Supabase the app connects as a non-superuser, so RLS
 applies without the test harness's `DB_LOCAL_ROLE` shim.
 
-## Stubbed / not yet wired (Phase 1 remainder + later phases)
+## Stubbed / not yet wired (later phases)
 
-- **UI**: sign-up / workspace-create / members screens and route handlers. The
-  domain + DB layer (the exit criterion) is done and tested; the screens sit on
-  top of it and are next.
-- **Session middleware**: cookie issue/verify and the request→membership→workspace
-  resolver that calls `withWorkspace`. Primitives exist (`src/server/auth.ts`).
-- **OAuth / passkeys**: TOTP is implemented; Google/Microsoft SSO and passkeys are
-  documented follow-ups.
+- **OAuth / passkeys**: TOTP is implemented; the MFA enrolment + TOTP sign-in
+  screens, Google/Microsoft SSO and passkeys are documented follow-ups.
+- **Email delivery**: invites surface a copyable link in local dev; production
+  wiring (Resend/Postmark) for verification + invite emails is pending.
 - **Supabase project**: not provisioned — needs your Supabase `DATABASE_URL`
   (and service key) to run migrations and host data. Everything is verified
   locally against PGlite until then.

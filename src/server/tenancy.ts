@@ -173,6 +173,24 @@ export async function createTeam(
   });
 }
 
+/** Pending invitations for a workspace. */
+export async function listPendingInvitations(
+  db: AnyPgDb,
+  input: { workspaceId: string; actorUserId: string },
+) {
+  return withWorkspace(db, { workspaceId: input.workspaceId, userId: input.actorUserId }, async (tx) =>
+    tx
+      .select({
+        id: invitations.id,
+        email: invitations.email,
+        role: invitations.role,
+        expiresAt: invitations.expiresAt,
+      })
+      .from(invitations)
+      .where(and(eq(invitations.workspaceId, input.workspaceId), eq(invitations.status, "pending"))),
+  );
+}
+
 /** List members of a workspace (RLS guarantees only this workspace's rows). */
 export async function listMembers(
   db: AnyPgDb,
