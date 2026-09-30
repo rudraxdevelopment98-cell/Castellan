@@ -1,8 +1,8 @@
 {
   "name": "castellan",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Castellan — read every document once, turn it into dated obligations, and know exactly what needs doing today. Built for UK portfolio landlords and any business that tracks documents and deadlines.",
+  "description": "Castellan — a multi-tenant, metadata-driven operations platform: records, documents, dated obligations, teams, reminders and answers. Any organisation shapes it around its own data.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,19 +10,30 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "test:isolation": "vitest run test/isolation.test.ts",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
+    "@node-rs/argon2": "^2.0.2",
+    "drizzle-orm": "^0.38.4",
+    "nanoid": "^5.0.9",
     "next": "^15.5.26",
+    "otplib": "^12.0.1",
+    "postgres": "^3.4.5",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17",
     "@types/node": "22.10.7",
     "@types/react": "18.3.18",
     "@types/react-dom": "18.3.5",
     "autoprefixer": "10.4.20",
+    "drizzle-kit": "^0.30.2",
     "postcss": "8.5.1",
     "tailwindcss": "3.4.17",
     "typescript": "5.7.3",
