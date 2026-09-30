@@ -1,0 +1,98 @@
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Cormorant+Garamond:wght@500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Castellan design tokens (ui_ux.tokens). Light = "cool paper white".
+  Borders not shadows; one accent (aged brass); status carried by colour AND
+  shape/text for accessibility. Dark mode provided per the spec.
+*/
+:root {
+  --canvas: #f6f7f5;
+  --surface: #ffffff;
+  --ink: #1e2724;
+  --ink-muted: #5b6661;
+  --rule: #dde1de;
+  --brand: #2e5b4f; /* Georgian door green */
+  --brand-weak: #e7efe9;
+  --accent: #a8844a; /* aged brass, used sparingly */
+
+  --status-overdue: #a8412e;
+  --status-due-soon: #b07a1f;
+  --status-ok: #3e7a52;
+  --status-missing: #6b5fa8;
+  --status-na: #c9cecb;
+
+  --font-sans: "Instrument Sans";
+  --font-serif: "Cormorant Garamond";
+}
+
+:root[data-theme="dark"] {
+  --canvas: #151a18;
+  --surface: #1c2220;
+  --ink: #e6eae7;
+  --ink-muted: #9aa6a1;
+  --rule: #303a36;
+  --brand: #4c8a78;
+  --brand-weak: #21302b;
+  --accent: #c6a668;
+
+  --status-overdue: #d46a54;
+  --status-due-soon: #d9a24a;
+  --status-ok: #6bb083;
+  --status-missing: #9a8fd6;
+  --status-na: #4a544f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #151a18;
+    --surface: #1c2220;
+    --ink: #e6eae7;
+    --ink-muted: #9aa6a1;
+    --rule: #303a36;
+    --brand: #4c8a78;
+    --brand-weak: #21302b;
+    --accent: #c6a668;
+    --status-overdue: #d46a54;
+    --status-due-soon: #d9a24a;
+    --status-ok: #6bb083;
+    --status-missing: #9a8fd6;
+    --status-na: #4a544f;
+  }
+}
+
+html,
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular figures for all money and dates. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Respect reduced motion (a11y). */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--brand-weak);
+}
