@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 const ITEMS = [
   { href: "/", label: "Today" },
   { href: "/documents", label: "Docs" },
-  { href: "/records", label: "Records" },
+  { href: "/assistant", label: "Assistant" },
   { href: "/ask", label: "Ask" },
 ];
 
