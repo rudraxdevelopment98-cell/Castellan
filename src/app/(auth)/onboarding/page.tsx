@@ -67,6 +67,10 @@ export default async function OnboardingPage({
             </span>
           </label>
         </fieldset>
+        <label className="flex items-center gap-2 rounded-ctl border border-rule px-3 py-2">
+          <input type="checkbox" name="samples" defaultChecked />
+          <span className="text-table text-ink">Add sample data (landlord template) so I can explore</span>
+        </label>
         <button className="w-full rounded-ctl bg-brand px-3 py-2 text-table font-medium text-white hover:opacity-90">
           Create workspace
         </button>

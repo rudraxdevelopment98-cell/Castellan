@@ -15,6 +15,13 @@
       "when": 1790795043385,
       "tag": "0001_phase2_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790795676735,
+      "tag": "0002_phase3_import",
+      "breakpoints": true
     }
   ]
 }

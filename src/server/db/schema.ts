@@ -349,6 +349,7 @@ export const records = pgTable(
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
     isSample: boolean("is_sample").notNull().default(false),
+    importId: uuid("import_id"), // batch id for import + one-click undo
     data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
     version: integer("version").notNull().default(1), // optimistic locking
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -359,6 +360,9 @@ export const records = pgTable(
   (t) => ({
     byObject: index("records_object_idx").on(t.workspaceId, t.objectId),
     byDeleted: index("records_deleted_idx").on(t.workspaceId, t.deletedAt),
+    // Keyset pagination default order (spec: never offset on large tables).
+    byUpdated: index("records_updated_idx").on(t.workspaceId, t.objectId, t.updatedAt, t.id),
+    byImport: index("records_import_idx").on(t.workspaceId, t.importId),
   }),
 );
 
