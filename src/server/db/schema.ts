@@ -255,6 +255,162 @@ export const auditLog = pgTable(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// Phase 2 — metadata engine: objects, fields, records, links, history, outbox.
+// Customers define their own data model at runtime; records store typed values
+// in a jsonb `data` column (spec metadata_engine.storage_design, the hybrid).
+// ---------------------------------------------------------------------------
+
+export const fieldTypeEnum = pgEnum("field_type", [
+  "text",
+  "long_text",
+  "number",
+  "currency",
+  "percent",
+  "date",
+  "datetime",
+  "duration",
+  "boolean",
+  "single_select",
+  "multi_select",
+  "status",
+  "email",
+  "phone",
+  "url",
+  "address",
+  "person",
+  "relation",
+  "file",
+  "sensitive_text",
+  "auto_number",
+]);
+
+export const objectDefs = pgTable(
+  "object_defs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    apiName: text("api_name").notNull(), // immutable after creation
+    singularLabel: text("singular_label").notNull(),
+    pluralLabel: text("plural_label").notNull(),
+    icon: text("icon"),
+    titleFieldApiName: text("title_field_api_name"),
+    description: text("description"),
+    numberingPrefix: text("numbering_prefix"),
+    numberingSeq: integer("numbering_seq").notNull().default(0),
+    isSystem: boolean("is_system").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    apiNameUnique: uniqueIndex("object_defs_ws_api_unique").on(t.workspaceId, t.apiName),
+    byWs: index("object_defs_ws_idx").on(t.workspaceId),
+  }),
+);
+
+export const fieldDefs = pgTable(
+  "field_defs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    objectId: uuid("object_id").notNull().references(() => objectDefs.id, { onDelete: "cascade" }),
+    apiName: text("api_name").notNull(), // immutable after creation
+    label: text("label").notNull(),
+    type: fieldTypeEnum("type").notNull(),
+    helpText: text("help_text"),
+    config: jsonb("config").$type<Record<string, unknown>>(), // per-type options
+    required: boolean("required").notNull().default(false),
+    unique: boolean("unique").notNull().default(false),
+    filterable: boolean("filterable").notNull().default(false),
+    defaultValue: jsonb("default_value"),
+    section: text("section"),
+    position: integer("position").notNull().default(0),
+    permissions: jsonb("permissions"), // per-role field visibility overrides
+    isSystem: boolean("is_system").notNull().default(false),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    apiNameUnique: uniqueIndex("field_defs_obj_api_unique").on(t.workspaceId, t.objectId, t.apiName),
+    byObject: index("field_defs_object_idx").on(t.workspaceId, t.objectId),
+  }),
+);
+
+export const records = pgTable(
+  "records",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    objectId: uuid("object_id").notNull().references(() => objectDefs.id, { onDelete: "cascade" }),
+    title: text("title"),
+    status: text("status"),
+    recordNumber: text("record_number"),
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+    isSample: boolean("is_sample").notNull().default(false),
+    data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    version: integer("version").notNull().default(1), // optimistic locking
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }), // soft delete / bin
+  },
+  (t) => ({
+    byObject: index("records_object_idx").on(t.workspaceId, t.objectId),
+    byDeleted: index("records_deleted_idx").on(t.workspaceId, t.deletedAt),
+  }),
+);
+
+export const recordLinks = pgTable(
+  "record_links",
+  {
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    fromRecordId: uuid("from_record_id").notNull().references(() => records.id, { onDelete: "cascade" }),
+    fieldApiName: text("field_api_name").notNull(),
+    toRecordId: uuid("to_record_id").notNull().references(() => records.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.fromRecordId, t.fieldApiName, t.toRecordId] }),
+    byWs: index("record_links_ws_idx").on(t.workspaceId),
+    byTo: index("record_links_to_idx").on(t.workspaceId, t.toRecordId),
+  }),
+);
+
+export const recordHistory = pgTable(
+  "record_history",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    recordId: uuid("record_id").notNull().references(() => records.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    field: text("field").notNull(),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    source: text("source").notNull().default("ui"), // ui | import | api | rule
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    byRecord: index("record_history_record_idx").on(t.workspaceId, t.recordId),
+  }),
+);
+
+export const outbox = pgTable(
+  "outbox",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // record.created | record.updated | record.deleted | ...
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
+    attempts: integer("attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    unprocessed: index("outbox_unprocessed_idx").on(t.workspaceId, t.processedAt),
+  }),
+);
+
 /** Tenant tables that RLS must FORCE. Kept here so rls.sql and tests agree. */
 export const TENANT_TABLES = [
   "workspaces",
@@ -263,4 +419,10 @@ export const TENANT_TABLES = [
   "team_members",
   "invitations",
   "audit_log",
+  "object_defs",
+  "field_defs",
+  "records",
+  "record_links",
+  "record_history",
+  "outbox",
 ] as const;

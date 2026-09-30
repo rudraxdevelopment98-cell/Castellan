@@ -41,7 +41,7 @@ DO $$
 DECLARE
   tbl text;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY['teams','memberships','team_members','invitations','audit_log']
+  FOREACH tbl IN ARRAY ARRAY['teams','memberships','team_members','invitations','audit_log','object_defs','field_defs','records','record_links','record_history','outbox']
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', tbl);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY;', tbl);
