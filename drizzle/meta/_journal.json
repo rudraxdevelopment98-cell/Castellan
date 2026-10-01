@@ -29,6 +29,13 @@
       "when": 1790834045926,
       "tag": "0003_phase4_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790856591021,
+      "tag": "0004_careless_maginty",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,7 @@ export default async function WorkspaceLayout({
     { href: `/w/${slug}/today`, label: "Today" },
     { href: `/w/${slug}/week`, label: "This week" },
     ...objects.map((o: { apiName: string; pluralLabel: string }) => ({ href: `/w/${slug}/o/${o.apiName}`, label: o.pluralLabel })),
+    { href: `/w/${slug}/documents`, label: "Documents" },
     { href: `/w/${slug}/rules`, label: "Rules" },
     { href: `/w/${slug}/data`, label: "Data model" },
     { href: `/w/${slug}/members`, label: "Members" },
@@ -34,7 +35,7 @@ export default async function WorkspaceLayout({
   const account = (
     <div className="text-meta text-ink-muted">
       <div className="flex items-center gap-1.5">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok" /> Data in UK region
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok" /> Data in UK / EU region
       </div>
       <div className="mt-1 truncate">{user.email} · {membership.role}</div>
       <form action={signOutAction} className="mt-2">

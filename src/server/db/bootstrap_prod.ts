@@ -56,6 +56,10 @@ export async function bootstrapProd(databaseUrl: string): Promise<BootstrapResul
       await sql.unsafe(rls);
     }
 
+    // Incremental, idempotent additions for an already-bootstrapped database
+    // (tables added after the first bootstrap). Safe to run every time.
+    await ensureAdditions(sql);
+
     // The non-bypass role the request path drops to. Idempotent.
     await sql.unsafe(`
       DO $$
@@ -89,6 +93,53 @@ export async function bootstrapProd(databaseUrl: string): Promise<BootstrapResul
   } finally {
     await sql.end({ timeout: 5 });
   }
+}
+
+// Idempotent DDL for tables introduced after the first bootstrap. Each statement
+// is guarded (IF NOT EXISTS / policy existence check) so re-running is a no-op.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ensureAdditions(sql: any): Promise<void> {
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS documents (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      record_id uuid REFERENCES records(id) ON DELETE SET NULL,
+      object_api_name text,
+      title text,
+      filename text NOT NULL,
+      mime text NOT NULL,
+      size integer NOT NULL,
+      bytes bytea NOT NULL,
+      doc_type text,
+      key_date text,
+      reminder_days jsonb NOT NULL DEFAULT '[30,7,1]'::jsonb,
+      note text,
+      uploaded_by uuid REFERENCES users(id) ON DELETE SET NULL,
+      created_at timestamp with time zone NOT NULL DEFAULT now(),
+      deleted_at timestamp with time zone
+    );
+    CREATE INDEX IF NOT EXISTS documents_ws_idx ON documents USING btree (workspace_id, deleted_at);
+    CREATE INDEX IF NOT EXISTS documents_record_idx ON documents USING btree (workspace_id, record_id);
+    CREATE INDEX IF NOT EXISTS documents_keydate_idx ON documents USING btree (workspace_id, key_date);
+    ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE documents FORCE ROW LEVEL SECURITY;
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'documents' AND policyname = 'documents_tenant'
+      ) THEN
+        CREATE POLICY documents_tenant ON documents
+          USING (
+            workspace_id = nullif(current_setting('app.workspace_id', true), '')::uuid
+            OR current_setting('app.bypass', true) = 'on'
+          )
+          WITH CHECK (
+            workspace_id = nullif(current_setting('app.workspace_id', true), '')::uuid
+            OR current_setting('app.bypass', true) = 'on'
+          );
+      END IF;
+    END $$;
+  `);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -10,7 +10,15 @@ import {
   uniqueIndex,
   index,
   primaryKey,
+  customType,
 } from "drizzle-orm/pg-core";
+
+/** Raw binary column (Postgres bytea) for stored document bytes. */
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 /**
  * Castellan v2.0 — Phase 1 schema: tenancy, auth, audit.
@@ -478,6 +486,39 @@ export const obligations = pgTable(
   }),
 );
 
+/**
+ * Documents: uploaded files (PDFs, scans, images) held in the database. Each may
+ * link to a record, and may carry a key date (expiry / renewal) with a reminder
+ * ladder so "upload a document, get reminded before it lapses" works for personal
+ * papers and business compliance alike — without needing a rule.
+ */
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    recordId: uuid("record_id").references(() => records.id, { onDelete: "set null" }),
+    objectApiName: text("object_api_name"), // for display/filtering when linked
+    title: text("title"), // defaults to filename
+    filename: text("filename").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    bytes: bytea("bytes").notNull(),
+    docType: text("doc_type"), // e.g. Insurance, Passport, MOT
+    keyDate: text("key_date"), // ISO date: expiry / renewal / due
+    reminderDays: jsonb("reminder_days").$type<number[]>().notNull().default([30, 7, 1]),
+    note: text("note"),
+    uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => ({
+    byWs: index("documents_ws_idx").on(t.workspaceId, t.deletedAt),
+    byRecord: index("documents_record_idx").on(t.workspaceId, t.recordId),
+    byKeyDate: index("documents_keydate_idx").on(t.workspaceId, t.keyDate),
+  }),
+);
+
 /** Tenant tables that RLS must FORCE. Kept here so rls.sql and tests agree. */
 export const TENANT_TABLES = [
   "workspaces",
@@ -494,4 +535,5 @@ export const TENANT_TABLES = [
   "outbox",
   "rules",
   "obligations",
+  "documents",
 ] as const;

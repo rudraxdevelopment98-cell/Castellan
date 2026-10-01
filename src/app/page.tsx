@@ -37,9 +37,9 @@ export default async function Landing() {
           Every great estate had a castellan.
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-body text-ink-muted">
-          Read every document once, turn it into dated obligations, and know exactly what needs
-          doing today. For UK landlords and any organisation that tracks records, documents and
-          deadlines — shaped around your own data.
+          Keep your important documents in one place, add a key date, and get reminded before
+          anything expires. For your home and personal papers — passports, insurance, MOT,
+          warranties — and for landlords and any business that tracks records and deadlines.
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           {hasDatabase() ? (
@@ -65,8 +65,8 @@ export default async function Landing() {
 
         <div className="mx-auto mt-16 grid max-w-2xl gap-4 text-left sm:grid-cols-3">
           {[
-            ["Records & documents", "Define your own objects and fields; import a spreadsheet in minutes."],
-            ["Dated obligations", "Rules turn trigger dates into reminders — nothing expires silently."],
+            ["Upload your documents", "Store PDFs and scans safely; attach them to anything you track."],
+            ["Never miss a renewal", "Add a key date and Castellan reminds you before it expires."],
             ["Today, every morning", "A single plan: what's overdue, due today, and good to start."],
           ].map(([h, b]) => (
             <div key={h} className="rounded-panel border border-rule bg-surface p-4">
@@ -76,7 +76,7 @@ export default async function Landing() {
           ))}
         </div>
 
-        <p className="mt-16 text-meta text-ink-muted">Data held in the UK region · UK GDPR</p>
+        <p className="mt-16 text-meta text-ink-muted">Data held in the UK / EU region · UK GDPR</p>
       </main>
     </div>
   );

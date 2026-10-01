@@ -5,7 +5,9 @@ import { resolveWorkspaceForUser } from "@/server/context";
 import { getDb } from "@/server/db/client";
 import { getObjectByApiName } from "@/server/metadata";
 import { getRecord, getRecordHistory } from "@/server/records";
+import { listDocuments } from "@/server/documents";
 import { RecordForm } from "@/components/RecordForm";
+import { DocumentsManager, type DocItem } from "@/components/DocumentsManager";
 import { formatFieldValue } from "@/lib/fieldDisplay";
 import { formatUkDate } from "@/lib/rules/dates";
 
@@ -28,6 +30,7 @@ export default async function RecordDetail({
   const rec = await getRecord(db, { workspaceId: membership.workspaceId, actorUserId: user.id, recordId });
   if (!rec) notFound();
   const history = await getRecordHistory(db, { workspaceId: membership.workspaceId, actorUserId: user.id, recordId });
+  const docs = (await listDocuments(db, { workspaceId: membership.workspaceId, actorUserId: user.id, recordId })) as DocItem[];
   const data = rec.data as Record<string, unknown>;
   const base = `/w/${slug}/o/${objectApiName}`;
 
@@ -61,6 +64,17 @@ export default async function RecordDetail({
           </dl>
         </section>
       )}
+
+      <section className="space-y-3">
+        <h2 className="text-section font-semibold text-ink">Documents</h2>
+        <DocumentsManager
+          slug={slug}
+          documents={docs}
+          recordId={recordId}
+          objectApiName={objectApiName}
+          compact
+        />
+      </section>
 
       <section className="overflow-hidden rounded-panel border border-rule bg-surface">
         <h2 className="border-b border-rule px-4 py-2 text-section font-semibold text-ink">History</h2>
