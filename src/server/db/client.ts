@@ -114,7 +114,12 @@ export function _setDbForTests(db: AnyPgDb | null): void {
 export async function getDb(): Promise<AnyPgDb> {
   if (_db) return _db;
   if (_init) return _init;
-  const url = process.env.DATABASE_URL;
+  // Accept the common hosted-Postgres env var names (Supabase / Vercel Postgres).
+  const url =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING;
   _init = (url ? initProd(url) : initDevPglite()).then((db) => {
     _db = db;
     return db;
