@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/server/session";
 import { getMembershipsForUser, resolveWorkspaceForUser } from "@/server/context";
@@ -6,6 +5,7 @@ import { getDb } from "@/server/db/client";
 import { listObjects } from "@/server/metadata";
 import { signOutAction } from "../../../(auth)/actions";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { WorkspaceNav, type NavItem } from "@/components/WorkspaceNav";
 
 export default async function WorkspaceLayout({
   children,
@@ -22,29 +22,59 @@ export default async function WorkspaceLayout({
   const db = await getDb();
   const objects = await listObjects(db, { workspaceId: membership.workspaceId, actorUserId: user.id });
 
+  const items: NavItem[] = [
+    { href: `/w/${slug}/today`, label: "Today" },
+    { href: `/w/${slug}/week`, label: "This week" },
+    ...objects.map((o: { apiName: string; pluralLabel: string }) => ({ href: `/w/${slug}/o/${o.apiName}`, label: o.pluralLabel })),
+    { href: `/w/${slug}/rules`, label: "Rules" },
+    { href: `/w/${slug}/data`, label: "Data model" },
+    { href: `/w/${slug}/members`, label: "Members" },
+  ];
+
+  const account = (
+    <div className="text-meta text-ink-muted">
+      <div className="flex items-center gap-1.5">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok" /> Data in UK region
+      </div>
+      <div className="mt-1 truncate">{user.email} · {membership.role}</div>
+      <form action={signOutAction} className="mt-2">
+        <button className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas">Sign out</button>
+      </form>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen">
-      <header className="flex flex-wrap items-center gap-3 border-b border-rule bg-surface px-5 py-3">
-        <span className="font-serif text-[22px] font-semibold tracking-wide text-ink">Castellan</span>
-        <WorkspaceSwitcher current={slug} options={all.map((w) => ({ slug: w.slug, name: w.name }))} />
-        <nav className="ml-2 flex flex-wrap items-center gap-1 text-table">
-          <Link href={`/w/${slug}/today`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Today</Link>
-          <Link href={`/w/${slug}/week`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">This week</Link>
-          {objects.map((o: { apiName: string; pluralLabel: string }) => (
-            <Link key={o.apiName} href={`/w/${slug}/o/${o.apiName}`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">{o.pluralLabel}</Link>
-          ))}
-          <Link href={`/w/${slug}/rules`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Rules</Link>
-          <Link href={`/w/${slug}/data`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Data model</Link>
-          <Link href={`/w/${slug}/members`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Members</Link>
-        </nav>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-meta text-ink-muted">{user.email} · {membership.role}</span>
-          <form action={signOutAction}>
-            <button className="rounded-ctl border border-rule px-3 py-1.5 text-meta text-ink hover:bg-canvas">Sign out</button>
-          </form>
+    <div className="flex min-h-screen">
+      {/* Desktop left sidebar (spec ui_ux.layout.desktop) */}
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-rule bg-surface md:flex">
+        <div className="border-b border-rule px-4 py-4">
+          <div className="font-serif text-[24px] font-semibold leading-none tracking-wide text-ink">Castellan</div>
+          <div className="mt-2">
+            <WorkspaceSwitcher current={slug} options={all.map((w) => ({ slug: w.slug, name: w.name }))} />
+          </div>
         </div>
-      </header>
-      <main className="mx-auto max-w-4xl px-5 py-6">{children}</main>
+        <div className="flex-1 overflow-y-auto px-2 py-3">
+          <WorkspaceNav items={items} slug={slug} />
+        </div>
+        <div className="border-t border-rule px-4 py-3">{account}</div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile top bar */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-rule bg-surface px-4 py-2 md:hidden">
+          <span className="font-serif text-[20px] font-semibold tracking-wide text-ink">Castellan</span>
+          <WorkspaceSwitcher current={slug} options={all.map((w) => ({ slug: w.slug, name: w.name }))} />
+          <form action={signOutAction} className="ml-auto">
+            <button className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas">Sign out</button>
+          </form>
+          <div className="w-full overflow-x-auto">
+            <div className="flex gap-1 whitespace-nowrap">
+              <WorkspaceNav items={items} slug={slug} />
+            </div>
+          </div>
+        </div>
+        <main className="mx-auto w-full max-w-5xl px-5 py-6">{children}</main>
+      </div>
     </div>
   );
 }
