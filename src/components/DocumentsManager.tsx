@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface DocItem {
@@ -63,6 +63,10 @@ export function DocumentsManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(!compact);
+  // Relative countdowns depend on "now", so only render them after mount to
+  // avoid a server/client hydration mismatch (which can break interactivity).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   async function onUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -187,7 +191,7 @@ export function DocumentsManager({
             </thead>
             <tbody>
               {documents.map((d) => {
-                const rel = relative(d.keyDate);
+                const rel = mounted ? relative(d.keyDate) : null;
                 return (
                   <tr key={d.id} className="border-b border-rule last:border-0">
                     <td className="px-4 py-2.5">

@@ -3,6 +3,7 @@ import { getMembershipsForUser } from "@/server/context";
 import { redirect } from "next/navigation";
 import { templates, PERSONAL_TEMPLATE_IDS } from "@/lib/data/templates";
 import { createWorkspaceAction } from "../../(platform)/actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function OnboardingPage({
   searchParams,
@@ -88,9 +89,7 @@ export default async function OnboardingPage({
           <input type="checkbox" name="samples" defaultChecked />
           <span className="text-table text-ink">Add sample data (landlord template only) so I can explore</span>
         </label>
-        <button className="w-full rounded-ctl bg-brand px-3 py-2 text-table font-medium text-white hover:opacity-90">
-          Create workspace
-        </button>
+        <SubmitButton pendingLabel="Creating workspace…">Create workspace</SubmitButton>
       </form>
     </div>
   );

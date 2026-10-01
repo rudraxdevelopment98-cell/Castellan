@@ -2,6 +2,7 @@ import Link from "next/link";
 import { signUpAction } from "../actions";
 import { hasDatabase } from "@/server/db/client";
 import { ComingSoon } from "@/components/ComingSoon";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function SignUpPage({
   searchParams,
@@ -53,9 +54,7 @@ export default async function SignUpPage({
             className="mt-1 w-full rounded-ctl border border-rule bg-surface px-3 py-2 text-body text-ink"
           />
         </label>
-        <button className="w-full rounded-ctl bg-brand px-3 py-2 text-table font-medium text-white hover:opacity-90">
-          Create account
-        </button>
+        <SubmitButton pendingLabel="Creating account…">Create account</SubmitButton>
       </form>
       <p className="mt-4 text-meta text-ink-muted">
         Already have an account?{" "}
