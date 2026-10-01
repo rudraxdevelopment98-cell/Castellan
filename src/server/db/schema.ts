@@ -415,6 +415,69 @@ export const outbox = pgTable(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// Phase 4 — rules & obligations. Rules (cadence-based, no-code) turn a record's
+// trigger-date field into dated obligations with a reminder ladder; the Today /
+// This-week screens read the generated obligations.
+// ---------------------------------------------------------------------------
+
+export const rules = pgTable(
+  "rules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    objectId: uuid("object_id").notNull().references(() => objectDefs.id, { onDelete: "cascade" }),
+    code: text("code"), // e.g. GAS_SAFETY; null for custom rules
+    title: text("title").notNull(),
+    why: text("why"),
+    enabled: boolean("enabled").notNull().default(true),
+    appliesWhen: jsonb("applies_when").$type<unknown[]>(), // Condition[]
+    triggerField: text("trigger_field").notNull(), // field api_name holding the trigger date
+    cadence: jsonb("cadence").$type<Record<string, unknown>>().notNull(),
+    reminderLadder: jsonb("reminder_ladder").$type<number[]>().notNull().default([]),
+    category: text("category").notNull().default("General"),
+    evidenceRequired: boolean("evidence_required").notNull().default(false),
+    sourceNote: text("source_note"),
+    lastVerified: text("last_verified"),
+    needsVerification: boolean("needs_verification").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    byWs: index("rules_ws_idx").on(t.workspaceId),
+    byObject: index("rules_object_idx").on(t.workspaceId, t.objectId),
+  }),
+);
+
+export const obligations = pgTable(
+  "obligations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    ruleId: uuid("rule_id").notNull().references(() => rules.id, { onDelete: "cascade" }),
+    recordId: uuid("record_id").notNull().references(() => records.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    why: text("why"),
+    category: text("category").notNull().default("General"),
+    dueDate: text("due_date"), // ISO date; null for watch items
+    cycleKey: text("cycle_key").notNull(), // dedupe: same rule+record+cycle never duplicates
+    plannedDate: text("planned_date"),
+    reminderDates: jsonb("reminder_dates").$type<string[]>().notNull().default([]),
+    status: text("status").notNull().default("open"), // open|in_progress|done|snoozed|not_applicable
+    assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    evidenceRequired: boolean("evidence_required").notNull().default(false),
+    snoozeReason: text("snooze_reason"),
+    snoozedUntil: text("snoozed_until"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    dedupe: uniqueIndex("obligations_dedupe_unique").on(t.workspaceId, t.ruleId, t.recordId, t.cycleKey),
+    byWs: index("obligations_ws_idx").on(t.workspaceId),
+    byDue: index("obligations_due_idx").on(t.workspaceId, t.dueDate),
+  }),
+);
+
 /** Tenant tables that RLS must FORCE. Kept here so rls.sql and tests agree. */
 export const TENANT_TABLES = [
   "workspaces",
@@ -429,4 +492,6 @@ export const TENANT_TABLES = [
   "record_links",
   "record_history",
   "outbox",
+  "rules",
+  "obligations",
 ] as const;

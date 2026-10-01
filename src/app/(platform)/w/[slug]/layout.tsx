@@ -28,10 +28,12 @@ export default async function WorkspaceLayout({
         <span className="font-serif text-[22px] font-semibold tracking-wide text-ink">Castellan</span>
         <WorkspaceSwitcher current={slug} options={all.map((w) => ({ slug: w.slug, name: w.name }))} />
         <nav className="ml-2 flex flex-wrap items-center gap-1 text-table">
-          <Link href={`/w/${slug}`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Home</Link>
+          <Link href={`/w/${slug}/today`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Today</Link>
+          <Link href={`/w/${slug}/week`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">This week</Link>
           {objects.map((o: { apiName: string; pluralLabel: string }) => (
             <Link key={o.apiName} href={`/w/${slug}/o/${o.apiName}`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">{o.pluralLabel}</Link>
           ))}
+          <Link href={`/w/${slug}/rules`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Rules</Link>
           <Link href={`/w/${slug}/data`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Data model</Link>
           <Link href={`/w/${slug}/members`} className="rounded-ctl px-3 py-1.5 text-ink hover:bg-canvas">Members</Link>
         </nav>

@@ -85,6 +85,39 @@ export async function inviteMemberAction(formData: FormData): Promise<void> {
   }
 }
 
+export async function regenerateObligationsAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const slug = String(formData.get("slug") ?? "");
+  const membership = await resolveWorkspaceForUser(user.id, slug);
+  if (!membership) redirect("/signin");
+  const db = await getDb();
+  await import("@/server/obligations_gen").then((m) =>
+    m.regenerateObligations(db, { workspaceId: membership!.workspaceId, actorUserId: user.id }),
+  );
+  redirect(`/w/${slug}/today`);
+}
+
+export async function setRuleEnabledAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const slug = String(formData.get("slug") ?? "");
+  const membership = await resolveWorkspaceForUser(user.id, slug);
+  if (!membership) redirect("/signin");
+  const db = await getDb();
+  const ruleId = String(formData.get("ruleId") ?? "");
+  const enabled = formData.get("enabled") === "true";
+  try {
+    await import("@/server/rules_admin").then((m) =>
+      m.setRuleEnabled(db, { workspaceId: membership!.workspaceId, actorUserId: user.id, ruleId, enabled }),
+    );
+    await import("@/server/obligations_gen").then((m) =>
+      m.regenerateObligations(db, { workspaceId: membership!.workspaceId, actorUserId: user.id }),
+    );
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e) throw e;
+  }
+  redirect(`/w/${slug}/rules`);
+}
+
 export async function createObjectAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const slug = String(formData.get("slug") ?? "");

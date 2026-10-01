@@ -31,11 +31,11 @@ export default async function WorkspaceHome({ params }: { params: Promise<{ slug
           this multi-tenant data.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href={`/w/${slug}/members`} className="rounded-ctl bg-brand px-3 py-1.5 text-table font-medium text-white hover:opacity-90">
-            Invite your team
+          <Link href={`/w/${slug}/today`} className="rounded-ctl bg-brand px-3 py-1.5 text-table font-medium text-white hover:opacity-90">
+            Open Today
           </Link>
-          <Link href="/" className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">
-            View the v1 demo screens
+          <Link href={`/w/${slug}/members`} className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">
+            Invite your team
           </Link>
         </div>
       </section>
