@@ -2,16 +2,25 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/server/session";
 import { getMembershipsForUser } from "@/server/context";
+import { hasDatabase } from "@/server/db/client";
 
 export const dynamic = "force-dynamic";
 
 export default async function Landing() {
-  // Signed-in visitors go straight to their workspace (or onboarding).
-  const user = await currentUser();
-  if (user) {
-    const wss = await getMembershipsForUser(user.id);
-    redirect(wss[0] ? `/w/${wss[0].slug}` : "/onboarding");
+  // Signed-in visitors go straight to their workspace (only when a DB is wired).
+  let target: string | null = null;
+  if (hasDatabase()) {
+    try {
+      const user = await currentUser();
+      if (user) {
+        const wss = await getMembershipsForUser(user.id);
+        target = wss[0] ? `/w/${wss[0].slug}` : "/onboarding";
+      }
+    } catch {
+      /* no DB / not signed in — show the landing */
+    }
   }
+  if (target) redirect(target);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -33,12 +42,25 @@ export default async function Landing() {
           deadlines — shaped around your own data.
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
-          <Link href="/signup" className="rounded-ctl bg-brand px-5 py-2.5 text-body font-medium text-white hover:opacity-90">
-            Create your workspace
-          </Link>
-          <Link href="/demo" className="rounded-ctl border border-rule bg-surface px-5 py-2.5 text-body text-ink hover:bg-canvas">
-            See the demo
-          </Link>
+          {hasDatabase() ? (
+            <>
+              <Link href="/signup" className="rounded-ctl bg-brand px-5 py-2.5 text-body font-medium text-white hover:opacity-90">
+                Create your workspace
+              </Link>
+              <Link href="/demo" className="rounded-ctl border border-rule bg-surface px-5 py-2.5 text-body text-ink hover:bg-canvas">
+                See the demo
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/demo" className="rounded-ctl bg-brand px-5 py-2.5 text-body font-medium text-white hover:opacity-90">
+                Explore the demo
+              </Link>
+              <Link href="/signup" className="rounded-ctl border border-rule bg-surface px-5 py-2.5 text-body text-ink hover:bg-canvas">
+                Accounts opening soon
+              </Link>
+            </>
+          )}
         </div>
 
         <div className="mx-auto mt-16 grid max-w-2xl gap-4 text-left sm:grid-cols-3">

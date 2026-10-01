@@ -110,6 +110,18 @@ export function _setDbForTests(db: AnyPgDb | null): void {
   _init = null;
 }
 
+/** Whether a hosted Postgres is configured (used to gate accounts in prod). */
+export function hasDatabase(): boolean {
+  if (_db) return true;
+  if (process.env.NODE_ENV !== "production") return true; // dev uses PGlite
+  return Boolean(
+    process.env.DATABASE_URL ||
+      process.env.POSTGRES_URL ||
+      process.env.POSTGRES_PRISMA_URL ||
+      process.env.POSTGRES_URL_NON_POOLING,
+  );
+}
+
 /** The application database. Supabase in prod, PGlite for local dev. */
 export async function getDb(): Promise<AnyPgDb> {
   if (_db) return _db;

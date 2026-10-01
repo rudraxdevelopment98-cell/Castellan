@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { signInAction } from "../actions";
+import { hasDatabase } from "@/server/db/client";
+import { ComingSoon } from "@/components/ComingSoon";
 
 export default async function SignInPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  if (!hasDatabase()) return <ComingSoon />;
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
   const email = typeof sp.email === "string" ? sp.email : "";
