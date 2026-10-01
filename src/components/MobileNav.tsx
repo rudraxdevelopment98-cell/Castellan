@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 // Mobile bottom bar (spec ui_ux.layout.mobile): Today, Documents, Records, Ask.
 const ITEMS = [
-  { href: "/", label: "Today" },
+  { href: "/demo", label: "Today" },
   { href: "/documents", label: "Docs" },
   { href: "/assistant", label: "Assistant" },
   { href: "/ask", label: "Ask" },
