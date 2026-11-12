@@ -20,6 +20,8 @@ Legend for status: `OPEN` (not yet fixed), `FIXED <commit>`, `DECISION NEEDED`.
 | Medium | 10 | M1–M10 |
 | Low | 5 | L1–L5 |
 
+_Counts are as first audited; findings discovered during the fix phase (C3, C4, M10) are added in place._
+
 The tenant **cross-workspace** isolation model (Postgres RLS, `FORCE ROW LEVEL SECURITY`, fail-closed
 `NULLIF(current_setting(...),'')::uuid`, non-superuser `app_user` role) is **sound** and well-implemented.
 The Critical findings are about **within-workspace record scope** (teams / sub-users), which is the
@@ -130,7 +132,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Proposed fix:** Implement the TOTP step (prompt, verify, recovery codes), set `mfaSatisfied`, and treat
   a session as unauthenticated for sensitive routes until MFA is satisfied when the user/policy requires it.
 
-### H8 — No security headers — OPEN
+### H8 — No security headers — FIXED (H8 commit): nonce-based CSP + static headers; fonts self-hosted
 - **Files:** `next.config.mjs` (no `headers()`), no middleware.
 - **What is wrong:** No Content-Security-Policy, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, or
   frame protection are sent.
