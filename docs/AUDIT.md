@@ -89,7 +89,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Proposed fix:** `requireCap(role, "records.export")` in the route (and/or in `exportCsv`). Add a
   role-by-route test.
 
-### H3 — Invitations are not bound to the invited email — OPEN
+### H3 — Invitations are not bound to the invited email — FIXED (H3/H4 commit)
 - **Files:** `src/server/tenancy.ts:121` (`acceptInvite`).
 - **What is wrong:** `acceptInvite` creates a membership for **whoever is logged in** when the token is
   presented; it never compares the authenticated user's email to `invitations.email`. An invite intended
@@ -97,10 +97,12 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Proposed fix:** Load the accepting user, compare normalised email to the invitation; reject on
   mismatch. Add tests for wrong-email, reused and expired tokens.
 
-### H4 — Privilege escalation through invite role — OPEN
+### H4 — Privilege escalation through invite role — FIXED (H3/H4 commit); role change / ownership transfer tracked in M7
 - **Files:** `src/server/tenancy.ts:87` (`inviteMember`), `src/server/validation.ts` (invite role enum).
-- **What is wrong:** An `admin` (has `members.manage`) can invite a new member as **`owner`**; nothing caps
-  the invited role at or below the inviter's. There is also no transfer-ownership flow and no
+- **Correction after closer reading:** the invite *form* validates the role against a schema that excludes
+  `owner`, so this was not exploitable through the shipped screen. The domain function, however, accepted
+  any role from any caller with `members.manage`, so the guard lived in one UI path only.
+- **What is wrong:** `inviteMember` accepted `owner` and never compared the invited role to the inviter's. There is also no transfer-ownership flow and no
   "last owner cannot be removed/demoted" guard.
 - **Proposed fix:** Reject inviting/assigning a role higher than the actor's (only an owner may mint an
   owner); enforce ≥1 owner invariant anywhere role/membership changes.

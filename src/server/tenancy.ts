@@ -9,7 +9,7 @@ import {
 import { asService, withWorkspace, type AnyPgDb } from "./db/client";
 import { appendAudit } from "./audit";
 import { newToken, sha256 } from "./auth";
-import { requireCap, type Role } from "./rbac";
+import { canGrantRole, PermissionError, requireCap, type Role } from "./rbac";
 
 /**
  * Tenancy domain: workspaces, members, roles, teams, invitations. Every tenant
@@ -89,7 +89,10 @@ export async function inviteMember(
   input: InviteInput,
 ): Promise<{ invitationId: string; token: string }> {
   return withWorkspace(db, { workspaceId: input.workspaceId, userId: input.actorUserId }, async (tx) => {
-    requireCap(await actorRole(tx, input.workspaceId, input.actorUserId), "members.manage");
+    const role = await actorRole(tx, input.workspaceId, input.actorUserId);
+    requireCap(role, "members.manage");
+    // No privilege escalation through an invite (AUDIT H4).
+    if (!canGrantRole(role, input.role)) throw new PermissionError("members.manage");
     const { token, tokenHash } = newToken();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
     const [inv] = await tx
@@ -117,7 +120,12 @@ export async function inviteMember(
   });
 }
 
-/** Accept an invite: creates the membership with the invited role. */
+/**
+ * Accept an invite: creates the membership with the invited role. The invite is
+ * bound to the address it was sent to (AUDIT H3): only a signed-in user whose
+ * email matches may accept it, so a forwarded or leaked link is useless to
+ * anyone else. Every failure reports the same message.
+ */
 export async function acceptInvite(
   db: AnyPgDb,
   input: { token: string; userId: string },
@@ -131,6 +139,10 @@ export async function acceptInvite(
       .where(and(eq(invitations.tokenHash, tokenHash), eq(invitations.status, "pending"), gt(invitations.expiresAt, new Date())))
       .limit(1);
     if (!inv) throw new Error("Invitation is invalid or has expired");
+    const [me] = await tx.select({ email: users.email }).from(users).where(eq(users.id, input.userId)).limit(1);
+    if (!me || String(me.email).trim().toLowerCase() !== String(inv.email).trim().toLowerCase()) {
+      throw new Error("Invitation is invalid or has expired");
+    }
     await tx
       .insert(memberships)
       .values({ workspaceId: inv.workspaceId, userId: input.userId, role: inv.role, scopeType: "all" })

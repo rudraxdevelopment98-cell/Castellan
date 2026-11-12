@@ -191,7 +191,7 @@ export async function acceptInviteAction(formData: FormData): Promise<void> {
       throw e;
     }
     console.error("acceptInvite failed:", e);
-    redirect(`/invite/${token}?error=${encodeURIComponent("This invitation is invalid or has expired.")}`);
+    redirect(`/invite/${token}?error=${encodeURIComponent("This invitation is invalid, has expired, or was sent to a different email address.")}`);
   }
   redirect(target);
 }

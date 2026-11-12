@@ -54,6 +54,17 @@ export const ROLE_CAPABILITIES: Record<Role, Set<Capability>> = {
   guest: R("records.view"),
 };
 
+const ROLE_RANK: Record<Role, number> = { guest: 0, viewer: 1, member: 2, manager: 3, admin: 4, owner: 5 };
+
+/**
+ * Whether `actor` may hand out `target` when inviting or changing a role.
+ * Nobody grants a role above their own, and ownership is never granted this
+ * way at all — it only moves through an explicit transfer by the owner.
+ */
+export function canGrantRole(actor: Role, target: Role): boolean {
+  return target !== "owner" && ROLE_RANK[target] <= ROLE_RANK[actor];
+}
+
 export function can(role: Role, capability: Capability): boolean {
   return ROLE_CAPABILITIES[role]?.has(capability) ?? false;
 }

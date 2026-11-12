@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { currentUser } from "@/server/session";
 import { acceptInviteAction } from "../../(platform)/actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function InvitePage({
   params,
@@ -30,9 +31,7 @@ export default async function InvitePage({
             <form action={acceptInviteAction} className="space-y-3">
               <input type="hidden" name="token" value={token} />
               <p className="text-body text-ink">Accept this invitation as <strong>{user.email}</strong>?</p>
-              <button className="w-full rounded-ctl bg-brand px-3 py-2 text-table font-medium text-white hover:opacity-90">
-                Accept invitation
-              </button>
+              <SubmitButton pendingLabel="Joining…">Accept invitation</SubmitButton>
             </form>
           ) : (
             <div className="space-y-3">
