@@ -152,7 +152,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
   time-boxed owner-approved read-only support grant, append-only platform audit). Large; scope and
   sequencing `DECISION NEEDED`.
 
-### H11 — Login timing / message oracle enables email enumeration — OPEN
+### H11 — Login timing / message oracle enables email enumeration — FIXED (H11 commit); sign-up still reveals a taken email, tracked under H5 / D2
 - **Files:** `src/server/users.ts:83`.
 - **What is wrong:** When the email does not exist, `verifyLogin` returns immediately without an Argon2
   verify, so a missing account answers measurably faster than an existing one. A locked account returns a

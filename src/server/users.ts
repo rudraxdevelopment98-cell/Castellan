@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { users } from "./db/schema";
 import { asService, getDb } from "./db/client";
@@ -73,6 +74,23 @@ export type LoginResult =
   | { ok: true; user: PublicUser; mfaRequired: boolean }
   | { ok: false; error: string };
 
+/**
+ * One message for every failed sign-in — unknown email, wrong password or a
+ * locked account — so the response never reveals whether an address is
+ * registered (AUDIT H11). It still tells a real user about the lockout.
+ */
+export const LOGIN_FAILED_MESSAGE =
+  `Email or password is incorrect. After ${MAX_FAILED_LOGINS} failed attempts an account is locked for ${LOCKOUT_MINUTES} minutes.`;
+
+// A real Argon2id hash of a random value, computed once. Verifying against it
+// when the account is missing (or locked) makes those paths cost the same as a
+// genuine wrong-password check, closing the timing side channel.
+let dummyHash: Promise<string> | null = null;
+function getDummyHash(): Promise<string> {
+  dummyHash ??= hashPassword(randomBytes(24).toString("base64url"));
+  return dummyHash;
+}
+
 /** Verify credentials with lockout accounting. Does not create a session. */
 export async function verifyLogin(input: {
   email: string;
@@ -81,12 +99,13 @@ export async function verifyLogin(input: {
   const db = await getDb();
   return asService(db, async (tx) => {
     const [u] = await tx.select().from(users).where(eq(users.email, normEmail(input.email))).limit(1);
-    // Uniform failure message to avoid leaking which emails exist.
-    const generic = { ok: false as const, error: "Email or password is incorrect." };
-    if (!u || !u.passwordHash) return generic;
+    const generic = { ok: false as const, error: LOGIN_FAILED_MESSAGE };
 
-    if (u.lockedUntil && new Date(u.lockedUntil) > new Date()) {
-      return { ok: false as const, error: "Account temporarily locked. Try again later." };
+    const locked = Boolean(u?.lockedUntil && new Date(u.lockedUntil) > new Date());
+    if (!u || !u.passwordHash || locked) {
+      // Burn the same work as a real check, then fail identically.
+      await verifyPassword(await getDummyHash(), input.password);
+      return generic;
     }
 
     const good = await verifyPassword(u.passwordHash, input.password);
