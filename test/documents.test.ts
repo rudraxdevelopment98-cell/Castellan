@@ -171,3 +171,23 @@ describe("document tenant isolation", () => {
     expect(res.ok).toBe(false);
   });
 });
+
+describe("upload type enforcement (AUDIT H13)", () => {
+  it("refuses active content whatever type the browser claims", async () => {
+    const res = await createDocument(db, {
+      workspaceId: ws, actorUserId: owner, filename: "page.html", mime: "application/pdf",
+      bytes: Buffer.from("<!doctype html><script>alert(1)</script>"),
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("stores the type detected from the content, not the one the browser sent", async () => {
+    const res = await createDocument(db, {
+      workspaceId: ws, actorUserId: owner, filename: "../../real.pdf", mime: "text/html", bytes: pdf,
+    });
+    if (!res.ok) throw new Error(res.error);
+    const stored = await getDocumentBytes(db, { workspaceId: ws, actorUserId: owner, id: res.id });
+    expect(stored?.mime).toBe("application/pdf");
+    expect(stored?.filename).toBe("real.pdf");
+  });
+});

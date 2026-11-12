@@ -2,6 +2,7 @@ import { currentUser } from "@/server/session";
 import { resolveWorkspaceForUser } from "@/server/context";
 import { getDb } from "@/server/db/client";
 import { getDocumentBytes } from "@/server/documents";
+import { downloadHeaders } from "@/server/uploads";
 
 export const runtime = "nodejs";
 
@@ -17,20 +18,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const user = await currentUser();
   if (!user) return new Response("Not signed in", { status: 401 });
   const membership = await resolveWorkspaceForUser(user.id, slug);
-  if (!membership) return new Response("No access", { status: 403 });
+  // A workspace the caller cannot see answers exactly like a missing document.
+  if (!membership) return new Response("Not found", { status: 404 });
 
   const db = await getDb();
   const doc = await getDocumentBytes(db, { workspaceId: membership.workspaceId, actorUserId: user.id, id });
   if (!doc) return new Response("Not found", { status: 404 });
 
-  const inline = /^(application\/pdf|image\/|text\/)/.test(doc.mime);
-  return new Response(doc.bytes, {
+  return new Response(new Uint8Array(doc.bytes), {
     status: 200,
-    headers: {
-      "Content-Type": doc.mime,
-      "Content-Length": String(doc.bytes.length),
-      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${encodeURIComponent(doc.filename)}"`,
-      "Cache-Control": "private, no-store",
-    },
+    headers: downloadHeaders(doc.mime, doc.filename, doc.bytes.length),
   });
 }

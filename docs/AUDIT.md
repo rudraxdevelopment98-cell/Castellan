@@ -16,7 +16,7 @@ Legend for status: `OPEN` (not yet fixed), `FIXED <commit>`, `DECISION NEEDED`.
 | Sev | Count | IDs |
 | --- | --- | --- |
 | Critical | 4 | C1, C2, C3, C4 |
-| High | 12 | H1–H12 |
+| High | 13 | H1–H13 |
 | Medium | 10 | M1–M10 |
 | Low | 5 | L1–L5 |
 
@@ -182,6 +182,22 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
   they may see the linked record. Same class as C1, for documents.
 - **Proposed fix:** Apply the record-scope predicate to documents (via the linked `record_id` / owner);
   deny out-of-scope ids with "not found".
+
+### H13 — Stored XSS through document upload — FIXED (H13 commit)
+- **Area:** Input / output security (found while verifying the CSP in H8)
+- **Files:** `src/app/api/documents/[id]/route.ts`, `src/server/documents.ts`.
+- **What is wrong:** Uploads accepted any file and stored the browser-supplied `Content-Type`. The download
+  route then served anything matching `text/*` or `image/*` **inline** from the application's own origin.
+  An uploaded `.html` or `.svg` therefore executed script in the session of whoever opened it, with access
+  to every same-origin endpoint. The filename was also reflected into `Content-Disposition` unsanitised.
+- **Reproduce:** Upload `x.html` containing a script, open it from the Documents list -> script runs on the
+  app origin.
+- **Fix:** `src/server/uploads.ts` — extension allow-list; the stored type is taken from the file's magic
+  bytes, never from the client; content that contradicts its extension is refused; only PDF and raster
+  images render inline; everything else downloads as `application/octet-stream` under
+  `Content-Security-Policy: default-src 'none'; sandbox`; `nosniff` on every response; filenames reduced to a
+  plain name. A non-member now gets the same 404 as a missing document. Covered by `test/uploads.test.ts`
+  and two integration cases in `test/documents.test.ts`.
 
 ---
 

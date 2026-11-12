@@ -3,6 +3,7 @@ import { documents, records } from "./db/schema";
 import { withWorkspace, type AnyPgDb } from "./db/client";
 import { actorContextInTx, recordInScope } from "./membership";
 import { requireCap } from "./rbac";
+import { inspectUpload } from "./uploads";
 
 /**
  * Documents domain: store uploaded files in the database (bytea), list and fetch
@@ -118,6 +119,10 @@ export async function createDocument(
   if (input.bytes.length > MAX_DOC_BYTES) {
     return { ok: false, error: `File is too large (max ${Math.floor(MAX_DOC_BYTES / 1024 / 1024)} MB).` };
   }
+  // The stored name and type come from inspecting the file itself, never from
+  // what the browser claimed (AUDIT H13).
+  const inspected = inspectUpload(input.filename, input.bytes);
+  if (!inspected.ok) return { ok: false, error: inspected.error };
   const keyDate = normalizeDate(input.keyDate);
   if (input.keyDate && !keyDate) return { ok: false, error: "Key date must be a valid date." };
 
@@ -141,9 +146,9 @@ export async function createDocument(
         workspaceId: input.workspaceId,
         recordId: input.recordId ?? null,
         objectApiName: input.objectApiName ?? null,
-        title: input.title?.trim() || input.filename,
-        filename: input.filename,
-        mime: input.mime || "application/octet-stream",
+        title: input.title?.trim() || inspected.filename,
+        filename: inspected.filename,
+        mime: inspected.mime,
         size: input.bytes.length,
         bytes: input.bytes,
         docType: input.docType?.trim() || null,

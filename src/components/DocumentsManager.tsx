@@ -133,11 +133,12 @@ export function DocumentsManager({
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block sm:col-span-2">
-              <span className="text-meta text-ink-muted">File (PDF, image or document — max 15 MB)</span>
+              <span className="text-meta text-ink-muted">File — PDF, image (PNG, JPG, GIF, WebP) or office document, max 15 MB</span>
               <input
                 name="file"
                 type="file"
                 required
+                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.heic,.tif,.tiff,.txt,.csv,.rtf,.doc,.docx,.xls,.xlsx,.odt,.ods,.eml,.msg"
                 className="mt-1 w-full rounded-ctl border border-rule bg-canvas px-3 py-2 text-body text-ink file:mr-3 file:rounded-ctl file:border-0 file:bg-brand file:px-3 file:py-1 file:text-white"
               />
             </label>
