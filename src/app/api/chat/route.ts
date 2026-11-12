@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { currentUser } from "@/server/session";
 import { getWorkspaceData } from "@/lib/data/store";
 import { templates } from "@/lib/data/templates";
 import { getToday } from "@/lib/domain/clock";
@@ -15,6 +16,20 @@ export const maxDuration = 60;
 const MODEL = process.env.CASTELLAN_CHAT_MODEL || "claude-opus-5-5";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
+
+// Bounds on what a caller may send (AUDIT H1): this endpoint is public for the
+// demo, so it must not accept unbounded input.
+const MAX_MESSAGES = 20;
+const MAX_MESSAGE_CHARS = 4000;
+
+/** A signed-in user, or null — never throws (no database => anonymous). */
+async function signedInUser() {
+  try {
+    return await currentUser();
+  } catch {
+    return null;
+  }
+}
 
 function streamText(text: string): Response {
   const encoder = new TextEncoder();
@@ -56,7 +71,16 @@ export async function POST(req: Request) {
     return new Response("Invalid request body.", { status: 400 });
   }
 
-  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const raw = Array.isArray(body.messages) ? body.messages : [];
+  if (raw.length > MAX_MESSAGES) return new Response("Too many messages.", { status: 413 });
+  const messages: ChatMessage[] = [];
+  for (const m of raw) {
+    if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string") {
+      return new Response("Invalid message.", { status: 400 });
+    }
+    if (m.content.length > MAX_MESSAGE_CHARS) return new Response("Message is too long.", { status: 413 });
+    messages.push({ role: m.role, content: m.content });
+  }
   const templateId =
     typeof body.templateId === "string" && templates.some((t) => t.id === body.templateId)
       ? body.templateId
@@ -65,8 +89,11 @@ export async function POST(req: Request) {
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
   if (!lastUser.trim()) return new Response("Ask a question.", { status: 400 });
 
-  // No key configured → deterministic grounded answer so the live site still works.
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // The model is only ever called for a signed-in user. Anonymous visitors to
+  // the public demo — and everyone when no key is configured — get the
+  // deterministic grounded answer, which costs nothing and cannot be abused to
+  // spend the API key (AUDIT H1).
+  if (!process.env.ANTHROPIC_API_KEY || !(await signedInUser())) {
     return streamText(groundedFallback(templateId, lastUser));
   }
 
@@ -91,9 +118,7 @@ export async function POST(req: Request) {
       max_tokens: 2048,
       thinking: { type: "adaptive" },
       system,
-      messages: messages
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => ({ role: m.role, content: m.content })),
+      messages,
     });
 
     const stream = new ReadableStream({

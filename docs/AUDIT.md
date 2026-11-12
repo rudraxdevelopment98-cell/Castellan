@@ -72,7 +72,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 
 ## HIGH
 
-### H1 — `/api/chat` is unauthenticated, not tenant-scoped, and an open LLM proxy — OPEN
+### H1 — `/api/chat` is unauthenticated, not tenant-scoped, and an open LLM proxy — FIXED (H1 commit): proxy closed; still answers from demo data only (a workspace-aware assistant is a feature, not built)
 - **Files:** `src/app/api/chat/route.ts`.
 - **What is wrong:** No session check. Anyone on the internet can POST. It answers from the in-memory
   **demo seed** (`getWorkspaceData(templateId)`), not the caller's workspace. If `ANTHROPIC_API_KEY` is
