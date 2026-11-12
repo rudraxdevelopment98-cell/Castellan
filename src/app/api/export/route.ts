@@ -3,6 +3,7 @@ import { resolveWorkspaceForUser } from "@/server/context";
 import { getObjectByApiName } from "@/server/metadata";
 import { getDb } from "@/server/db/client";
 import { exportCsv } from "@/server/export";
+import { PermissionError } from "@/server/rbac";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -23,9 +24,15 @@ export async function GET(req: Request) {
   const obj = await getObjectByApiName(db, { workspaceId: membership.workspaceId, actorUserId: user.id, apiName: objectApiName });
   if (!obj) return new Response("Object not found", { status: 404 });
 
-  const csv = await exportCsv(db, {
-    workspaceId: membership.workspaceId, actorUserId: user.id, objectId: obj.id, fields: obj.fields, search,
-  });
+  let csv: string;
+  try {
+    csv = await exportCsv(db, {
+      workspaceId: membership.workspaceId, actorUserId: user.id, objectId: obj.id, fields: obj.fields, search,
+    });
+  } catch (e) {
+    if (e instanceof PermissionError) return new Response("Not permitted", { status: 403 });
+    throw e;
+  }
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

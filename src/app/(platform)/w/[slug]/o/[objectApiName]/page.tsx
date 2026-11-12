@@ -5,6 +5,7 @@ import { resolveWorkspaceForUser } from "@/server/context";
 import { getDb } from "@/server/db/client";
 import { getObjectByApiName } from "@/server/metadata";
 import { queryRecords } from "@/server/records_query";
+import { can } from "@/server/rbac";
 import { formatFieldValue } from "@/lib/fieldDisplay";
 
 const COLS = 6; // visible columns kept readable; column manager is a follow-up
@@ -52,9 +53,15 @@ export default async function ObjectGrid({
           <p className="tnum text-meta text-ink-muted">{page.total} record{page.total === 1 ? "" : "s"}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`${base}/new`} className="rounded-ctl bg-brand px-3 py-1.5 text-table font-medium text-white hover:opacity-90">New</Link>
-          <Link href={`${base}/import`} className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">Import</Link>
-          <a href={`/api/export?slug=${slug}&object=${objectApiName}${search ? `&q=${encodeURIComponent(search)}` : ""}`} className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">Export</a>
+          {can(membership.role, "records.create") && (
+            <>
+              <Link href={`${base}/new`} className="rounded-ctl bg-brand px-3 py-1.5 text-table font-medium text-white hover:opacity-90">New</Link>
+              <Link href={`${base}/import`} className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">Import</Link>
+            </>
+          )}
+          {can(membership.role, "records.export") && (
+            <a href={`/api/export?slug=${slug}&object=${objectApiName}${search ? `&q=${encodeURIComponent(search)}` : ""}`} className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">Export</a>
+          )}
         </div>
       </div>
 

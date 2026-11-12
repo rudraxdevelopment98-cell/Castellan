@@ -81,7 +81,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
   caller's own workspace data; rate-limit; never run against seed data in production. If the assistant is
   to stay off by default, gate the route behind a flag and return 404 when disabled.
 
-### H2 — CSV export does not check `records.export` — OPEN
+### H2 — CSV export does not check `records.export` — FIXED (H2 commit)
 - **Files:** `src/app/api/export/route.ts`, `src/server/export.ts`.
 - **What is wrong:** The route checks membership but never the `records.export` capability, and
   `exportCsv` has no guard. `member`, `viewer` and `guest` roles (which lack `records.export`) can export

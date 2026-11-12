@@ -1,4 +1,6 @@
-import type { AnyPgDb } from "./db/client";
+import { withWorkspace, type AnyPgDb } from "./db/client";
+import { actorRoleInTx } from "./membership";
+import { requireCap } from "./rbac";
 import { queryRecords, type RecordFilter } from "./records_query";
 import { toCsv } from "./csv";
 import type { FieldDefLite } from "./pipeline/fieldtypes";
@@ -7,6 +9,9 @@ import type { FieldDefLite } from "./pipeline/fieldtypes";
  * Export the current view to CSV (spec import_export.export): respects filters,
  * columns and the caller's record scope. Money is rendered as a decimal amount;
  * booleans as Yes/No; multi-values joined.
+ *
+ * Requires the `records.export` capability (owner, admin, manager). Rows come
+ * from queryRecords, so a scope-restricted exporter only gets their own rows.
  */
 
 function cell(value: unknown, field?: FieldDefLite): string {
@@ -30,6 +35,10 @@ export async function exportCsv(
     max?: number;
   },
 ): Promise<string> {
+  await withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
+    requireCap(await actorRoleInTx(tx, cmd.workspaceId, cmd.actorUserId), "records.export");
+  });
+
   const max = cmd.max ?? 10000;
   const headers = ["Record #", "Title", ...cmd.fields.map((f) => f.label)];
   const outRows: unknown[][] = [];
