@@ -1,7 +1,6 @@
 import { and, asc, desc, eq, isNull, isNotNull } from "drizzle-orm";
 import {
   fieldDefs,
-  memberships,
   objectDefs,
   outbox,
   recordHistory,
@@ -9,7 +8,7 @@ import {
   records,
 } from "./db/schema";
 import { withWorkspace, type AnyPgDb } from "./db/client";
-import { actorRoleInTx } from "./membership";
+import { actorRoleInTx, actorContextInTx, recordScopeCondition, recordInScope } from "./membership";
 import { requireCap, type Role } from "./rbac";
 import { runPreProcessing } from "./pipeline";
 import type { FieldDefLite, FieldError, FieldType } from "./pipeline/fieldtypes";
@@ -143,13 +142,17 @@ export interface UpdateRecordInput {
 
 export async function updateRecord(db: AnyPgDb, cmd: UpdateRecordInput): Promise<WriteResult> {
   return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
-    requireCap(await actorRoleInTx(tx, cmd.workspaceId, cmd.actorUserId), "records.edit");
+    const me = await actorContextInTx(tx, cmd.workspaceId, cmd.actorUserId);
+    requireCap(me.role, "records.edit");
     const [existing] = await tx
       .select()
       .from(records)
       .where(and(eq(records.id, cmd.recordId), isNull(records.deletedAt)))
       .limit(1);
-    if (!existing) throw new Error("Record not found");
+    // Out-of-scope records are indistinguishable from non-existent ones.
+    if (!existing || !recordInScope(me.scopeType, cmd.actorUserId, existing.ownerId as string | null)) {
+      throw new Error("Record not found");
+    }
 
     if (cmd.expectedVersion !== undefined && existing.version !== cmd.expectedVersion) {
       const changed = Object.keys(cmd.input).filter(
@@ -212,7 +215,16 @@ export async function softDeleteRecord(
   cmd: { workspaceId: string; actorUserId: string; recordId: string },
 ): Promise<void> {
   await withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
-    requireCap(await actorRoleInTx(tx, cmd.workspaceId, cmd.actorUserId), "records.delete");
+    const me = await actorContextInTx(tx, cmd.workspaceId, cmd.actorUserId);
+    requireCap(me.role, "records.delete");
+    const [existing] = await tx
+      .select({ ownerId: records.ownerId })
+      .from(records)
+      .where(eq(records.id, cmd.recordId))
+      .limit(1);
+    if (!existing || !recordInScope(me.scopeType, cmd.actorUserId, existing.ownerId as string | null)) {
+      throw new Error("Record not found");
+    }
     await tx.update(records).set({ deletedAt: new Date() }).where(eq(records.id, cmd.recordId));
     await tx.insert(recordHistory).values({
       workspaceId: cmd.workspaceId, recordId: cmd.recordId, actorUserId: cmd.actorUserId,
@@ -227,7 +239,16 @@ export async function restoreRecord(
   cmd: { workspaceId: string; actorUserId: string; recordId: string },
 ): Promise<void> {
   await withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
-    requireCap(await actorRoleInTx(tx, cmd.workspaceId, cmd.actorUserId), "records.delete");
+    const me = await actorContextInTx(tx, cmd.workspaceId, cmd.actorUserId);
+    requireCap(me.role, "records.delete");
+    const [existing] = await tx
+      .select({ ownerId: records.ownerId })
+      .from(records)
+      .where(eq(records.id, cmd.recordId))
+      .limit(1);
+    if (!existing || !recordInScope(me.scopeType, cmd.actorUserId, existing.ownerId as string | null)) {
+      throw new Error("Record not found");
+    }
     await tx.update(records).set({ deletedAt: null }).where(eq(records.id, cmd.recordId));
     await tx.insert(recordHistory).values({
       workspaceId: cmd.workspaceId, recordId: cmd.recordId, actorUserId: cmd.actorUserId,
@@ -241,7 +262,13 @@ export async function getRecord(
   cmd: { workspaceId: string; actorUserId: string; recordId: string },
 ) {
   return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
-    const [rec] = await tx.select().from(records).where(eq(records.id, cmd.recordId)).limit(1);
+    const me = await actorContextInTx(tx, cmd.workspaceId, cmd.actorUserId);
+    const scope = recordScopeCondition(me.scopeType, cmd.actorUserId);
+    const [rec] = await tx
+      .select()
+      .from(records)
+      .where(scope ? and(eq(records.id, cmd.recordId), scope) : eq(records.id, cmd.recordId))
+      .limit(1);
     return rec ?? null;
   });
 }
@@ -250,13 +277,21 @@ export async function getRecordHistory(
   db: AnyPgDb,
   cmd: { workspaceId: string; actorUserId: string; recordId: string },
 ) {
-  return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) =>
-    tx
+  return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
+    // History is only visible if the record itself is in the actor's scope.
+    const me = await actorContextInTx(tx, cmd.workspaceId, cmd.actorUserId);
+    const [rec] = await tx
+      .select({ ownerId: records.ownerId })
+      .from(records)
+      .where(eq(records.id, cmd.recordId))
+      .limit(1);
+    if (!rec || !recordInScope(me.scopeType, cmd.actorUserId, rec.ownerId as string | null)) return [];
+    return tx
       .select()
       .from(recordHistory)
       .where(eq(recordHistory.recordId, cmd.recordId))
-      .orderBy(desc(recordHistory.at)),
-  );
+      .orderBy(desc(recordHistory.at));
+  });
 }
 
 /** List records for an object, honouring the member's record scope. */
@@ -265,18 +300,14 @@ export async function listRecords(
   cmd: { workspaceId: string; actorUserId: string; objectId: string; includeDeleted?: boolean },
 ) {
   return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
-    const [me] = await tx
-      .select({ role: memberships.role, scopeType: memberships.scopeType })
-      .from(memberships)
-      .where(and(eq(memberships.workspaceId, cmd.workspaceId), eq(memberships.userId, cmd.actorUserId)))
-      .limit(1);
-    if (!me) throw new Error("Actor is not a member of this workspace");
+    const me = await actorContextInTx(tx, cmd.workspaceId, cmd.actorUserId);
 
     const where = [eq(records.workspaceId, cmd.workspaceId), eq(records.objectId, cmd.objectId)];
     where.push(cmd.includeDeleted ? isNotNull(records.deletedAt) : isNull(records.deletedAt));
-    // Record scope (spec record_scope): 'assigned' sees only own records.
-    // 'team' and 'filter' are Phase 2.x follow-ups; 'all' adds no extra filter.
-    if ((me.scopeType as string) === "assigned") where.push(eq(records.ownerId, cmd.actorUserId));
+    // Record scope (spec record_scope): only 'all' sees every record; every
+    // other scope is restricted to the actor's own records (fail closed).
+    const scope = recordScopeCondition(me.scopeType, cmd.actorUserId);
+    if (scope) where.push(scope);
 
     return tx.select().from(records).where(and(...where)).orderBy(desc(records.updatedAt));
   });

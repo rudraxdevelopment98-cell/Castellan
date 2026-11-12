@@ -1,6 +1,7 @@
 import { and, eq, isNull, isNotNull, sql } from "drizzle-orm";
-import { memberships, records } from "./db/schema";
+import { records } from "./db/schema";
 import { withWorkspace, type AnyPgDb } from "./db/client";
+import { actorContextInTx, recordScopeCondition } from "./membership";
 
 /**
  * Paginated record queries for the data grid. Keyset pagination on
@@ -36,7 +37,10 @@ export interface QueryResult {
 function buildWhere(records_: typeof records, p: QueryParams, me: { scopeType: string }) {
   const w = [eq(records_.workspaceId, p.workspaceId), eq(records_.objectId, p.objectId)];
   w.push(p.includeDeleted ? isNotNull(records_.deletedAt) : isNull(records_.deletedAt));
-  if (me.scopeType === "assigned") w.push(eq(records_.ownerId, p.actorUserId));
+  // Only 'all' sees every record; every other scope is restricted to own
+  // records (fail closed — 'team'/'filter' association is not yet modelled).
+  const scope = recordScopeCondition(me.scopeType, p.actorUserId);
+  if (scope) w.push(scope);
 
   if (p.search && p.search.trim()) {
     const like = `%${p.search.trim()}%`;
@@ -54,14 +58,9 @@ function buildWhere(records_: typeof records, p: QueryParams, me: { scopeType: s
 export async function queryRecords(db: AnyPgDb, p: QueryParams): Promise<QueryResult> {
   const limit = Math.min(Math.max(p.limit ?? 50, 1), 250);
   return withWorkspace(db, { workspaceId: p.workspaceId, userId: p.actorUserId }, async (tx) => {
-    const [me] = await tx
-      .select({ scopeType: memberships.scopeType })
-      .from(memberships)
-      .where(and(eq(memberships.workspaceId, p.workspaceId), eq(memberships.userId, p.actorUserId)))
-      .limit(1);
-    if (!me) throw new Error("Actor is not a member of this workspace");
+    const me = await actorContextInTx(tx, p.workspaceId, p.actorUserId);
 
-    const where = buildWhere(records, p, { scopeType: me.scopeType as string });
+    const where = buildWhere(records, p, { scopeType: me.scopeType });
 
     const pageWhere = [...where];
     if (p.cursor) {
