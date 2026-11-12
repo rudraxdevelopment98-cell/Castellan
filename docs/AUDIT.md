@@ -15,7 +15,7 @@ Legend for status: `OPEN` (not yet fixed), `FIXED <commit>`, `DECISION NEEDED`.
 
 | Sev | Count | IDs |
 | --- | --- | --- |
-| Critical | 3 | C1, C2, C3 |
+| Critical | 4 | C1, C2, C3, C4 |
 | High | 12 | H1–H12 |
 | Medium | 10 | M1–M10 |
 | Low | 5 | L1–L5 |
@@ -69,6 +69,19 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
   others are listed.
 - **Fix:** `loadOpen` applies the same `recordScopeCondition` through the existing join on `records`.
   Covered by two cases in `test/record-scope.test.ts`.
+
+### C4 — Sign-in is broken for every user — FIXED (C4 commit)
+- **Area:** Authentication (found by the local end-to-end run during the fix phase)
+- **Files:** `src/app/(auth)/actions.ts` (`signInAction`), `src/server/validation.ts` (`signInSchema`).
+- **What is wrong:** The sign-in form renders no MFA field, so `formData.get("totp")` is `null`. The schema
+  declares `totp` optional, which accepts `undefined` but not `null`, so validation failed and the action
+  redirected to "Check your details." before the password was ever checked. Sign-up worked (it starts a
+  session directly), so the fault only appeared when a user came back. The existing tests called
+  `verifyLogin` directly and never exercised the form path.
+- **Reproduce:** Sign up, sign out, sign in with the correct password -> "Check your details."
+- **Fix:** Form fields are read through a helper that maps an absent field to `undefined`
+  (`parseSignInForm`, `parseSignUpForm`). Covered by `test/auth-forms.test.ts` and verified end to end in a
+  browser (sign up -> sign out -> sign in).
 
 ---
 

@@ -30,6 +30,33 @@ export const signInSchema = z.object({
   totp: z.string().trim().optional(),
 });
 
+/**
+ * A form field that is not present arrives from FormData as `null`, which the
+ * schemas above (rightly) do not accept as a string. Read fields through this so
+ * "absent" is `undefined` — otherwise an optional field that the form does not
+ * render makes the whole submission invalid (AUDIT C4: this broke every sign-in).
+ */
+function field(form: FormData, key: string): string | undefined {
+  const v = form.get(key);
+  return typeof v === "string" ? v : undefined;
+}
+
+export function parseSignInForm(form: FormData) {
+  return signInSchema.safeParse({
+    email: field(form, "email"),
+    password: field(form, "password"),
+    totp: field(form, "totp"),
+  });
+}
+
+export function parseSignUpForm(form: FormData) {
+  return signUpSchema.safeParse({
+    name: field(form, "name"),
+    email: field(form, "email"),
+    password: field(form, "password"),
+  });
+}
+
 export const roleSchema = z.enum(["admin", "manager", "member", "viewer", "guest"]);
 
 export const createWorkspaceSchema = z.object({

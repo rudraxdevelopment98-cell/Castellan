@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { signInSchema, signUpSchema } from "@/server/validation";
+import { parseSignInForm, parseSignUpForm } from "@/server/validation";
 import { createUser, verifyLogin } from "@/server/users";
 import { getMembershipsForUser } from "@/server/context";
 import { startSession, endSession } from "@/server/session";
@@ -24,11 +24,7 @@ async function destinationFor(userId: string, next: string | null): Promise<stri
 }
 
 export async function signUpAction(formData: FormData): Promise<void> {
-  const parsed = signUpSchema.safeParse({
-    name: formData.get("name"),
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
+  const parsed = parseSignUpForm(formData);
   if (!parsed.success) {
     const msg = parsed.error.issues[0]?.message ?? "Check your details.";
     redirect(`/signup?error=${encodeURIComponent(msg)}`);
@@ -45,11 +41,7 @@ export async function signUpAction(formData: FormData): Promise<void> {
 }
 
 export async function signInAction(formData: FormData): Promise<void> {
-  const parsed = signInSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-    totp: formData.get("totp"),
-  });
+  const parsed = parseSignInForm(formData);
   const next = safeNext(formData.get("next"));
   if (!parsed.success) {
     redirect(`/signin?error=${encodeURIComponent("Check your details.")}`);
