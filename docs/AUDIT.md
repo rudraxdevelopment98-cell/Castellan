@@ -57,7 +57,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
   `listRecords`; until the association model is finalised, `'team'`/`'filter'` must **fail closed**
   (treat as `assigned` or empty) rather than open. Mark the association design `DECISION NEEDED`.
 
-### C3 — Today / This-week ignore record scope — FIXED (this commit)
+### C3 — Today / This-week ignore record scope — FIXED `992fe35`
 - **Area:** Authorisation / tenant scope (found during the C1/C2 fix; same class)
 - **Files:** `src/server/today.ts` (`loadOpen`, used by `buildTodayPlan` and `buildWeekPlan`).
 - **What is wrong:** Open obligations were loaded for the whole workspace and joined to the record title,
@@ -212,7 +212,7 @@ the chain, and several actions (sign-in, export, role change) are not recorded. 
 from client input without an allow-list check against the object's fields (defense-in-depth).
 `src/server/records_query.ts:45`.
 
-### M10 — `npm run lint` cannot run — OPEN
+### M10 — `npm run lint` cannot run — FIXED (lint gate commit)
 There is no ESLint configuration and no `eslint` dependency, so `next lint` drops into an interactive
 set-up prompt. The lint gate required by the audit brief is therefore not a gate at all. `package.json`.
 Fix: add `eslint` + `eslint-config-next` with a flat config and a non-interactive `lint` script.

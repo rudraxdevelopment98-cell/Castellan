@@ -33,7 +33,6 @@ export interface QueryResult {
   total: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildWhere(records_: typeof records, p: QueryParams, me: { scopeType: string }) {
   const w = [eq(records_.workspaceId, p.workspaceId), eq(records_.objectId, p.objectId)];
   w.push(p.includeDeleted ? isNotNull(records_.deletedAt) : isNull(records_.deletedAt));

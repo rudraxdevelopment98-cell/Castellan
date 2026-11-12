@@ -18,11 +18,11 @@ import type { FieldDefLite, FieldError, FieldType } from "./pipeline/fieldtypes"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = any;
 
-async function loadFields(tx: Tx, objectId: string): Promise<{ obj: any; fields: FieldDefLite[] } | null> {
+async function loadFields(tx: Tx, objectId: string): Promise<{ obj: typeof objectDefs.$inferSelect; fields: FieldDefLite[] } | null> {
   const [obj] = await tx.select().from(objectDefs).where(eq(objectDefs.id, objectId)).limit(1);
   if (!obj) return null;
   const fs = await tx.select().from(fieldDefs).where(eq(fieldDefs.objectId, objectId));
-  const fields: FieldDefLite[] = fs.map((f: any) => ({
+  const fields: FieldDefLite[] = fs.map((f: typeof fieldDefs.$inferSelect) => ({
     apiName: f.apiName, label: f.label, type: f.type as FieldType,
     required: f.required, unique: f.unique, config: f.config ?? undefined, defaultValue: f.defaultValue ?? undefined,
   }));

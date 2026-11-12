@@ -146,7 +146,6 @@ export const demoUsers: User[] = [
 
 /** A handful of documents sitting in the review queue (needs_review). */
 export function seedLandlordDocuments(records: TrackedRecord[]): TrackedDocument[] {
-  const r0 = records[0]?.label ?? "22 Cable Street";
   return [
     {
       id: "d1",

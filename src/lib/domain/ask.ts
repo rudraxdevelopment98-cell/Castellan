@@ -1,5 +1,4 @@
 import { type IsoDate } from "../rules/dates";
-import { ruleApplies } from "../rules/engine";
 import type { TrackedRecord } from "../rules/types";
 import type { WorkspaceData } from "../data/types";
 import { buildObligationViews, findUninsured } from "./views";

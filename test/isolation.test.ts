@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { makeTestDb } from "./harness";
 import { auditLog, memberships, teams, users, workspaces } from "@/server/db/schema";
 import { asService, withWorkspace, type AnyPgDb } from "@/server/db/client";
@@ -91,7 +91,7 @@ describe("tenant isolation", () => {
   });
 
   it("fails closed: no workspace scope set returns zero tenant rows", async () => {
-    const rows = await db.transaction(async (tx: any) => {
+    const rows = await db.transaction(async (tx) => {
       // Run as the app's non-superuser role, bypass off, but deliberately do
       // NOT set app.workspace_id — RLS must return nothing.
       await tx.execute(sql`set local role app_user`);
@@ -104,10 +104,10 @@ describe("tenant isolation", () => {
   it("audit rows never leak across workspaces and the chain verifies", async () => {
     const rowsA = (await withWorkspace(db, { workspaceId: wsA, userId: userA }, (tx) =>
       tx.select().from(auditLog).orderBy(auditLog.at),
-    )) as any[];
+    )) as (typeof auditLog.$inferSelect)[];
     expect(rowsA.length).toBeGreaterThan(0);
     expect(rowsA.every((r: { workspaceId: string | null }) => r.workspaceId === wsA)).toBe(true);
-    expect(verifyChain(rowsA as any)).toBe(true);
+    expect(verifyChain(rowsA)).toBe(true);
   });
 });
 

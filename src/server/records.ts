@@ -31,7 +31,7 @@ async function loadObjectInTx(tx: Tx, objectId: string) {
     .from(fieldDefs)
     .where(and(eq(fieldDefs.objectId, objectId), isNull(fieldDefs.deletedAt)))
     .orderBy(asc(fieldDefs.position));
-  const lite: FieldDefLite[] = fields.map((f: any) => ({
+  const lite: FieldDefLite[] = fields.map((f: typeof fieldDefs.$inferSelect) => ({
     apiName: f.apiName,
     label: f.label,
     type: f.type as FieldType,

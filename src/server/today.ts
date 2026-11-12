@@ -24,8 +24,11 @@ export interface ObligationView {
   band: UrgencyBand;
 }
 
+/** An open obligation as loaded, before it is banded for a given day. */
+type OpenRow = Omit<ObligationView, "band"> & { reminderDates: string[]; status: string };
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadOpen(tx: any, workspaceId: string, actorUserId: string): Promise<ObligationView[]> {
+async function loadOpen(tx: any, workspaceId: string, actorUserId: string): Promise<OpenRow[]> {
   // Obligations name the record they belong to, so they follow record scope:
   // a member only sees obligations for records they are allowed to see.
   const me = await actorContextInTx(tx, workspaceId, actorUserId);
@@ -48,7 +51,7 @@ async function loadOpen(tx: any, workspaceId: string, actorUserId: string): Prom
     .innerJoin(records, eq(records.id, obligations.recordId))
     .innerJoin(objectDefs, eq(objectDefs.id, records.objectId))
     .where(scope ? and(base, scope) : base);
-  return rows as unknown as (ObligationView & { reminderDates: string[]; status: string })[] as ObligationView[];
+  return rows as OpenRow[];
 }
 
 function asEngineOb(v: { dueDate: string | null; reminderDates?: string[]; status?: string }): Obligation {
@@ -73,8 +76,8 @@ export async function buildTodayPlan(
 ): Promise<TodayPlan> {
   return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
     const rows = await loadOpen(tx, cmd.workspaceId, cmd.actorUserId);
-    const views = rows.map((r) => ({ ...r, band: urgencyBand(asEngineOb(r as any), cmd.today) }));
-    views.sort((a, b) => sortForToday(asEngineOb(a as any), asEngineOb(b as any), cmd.today));
+    const views = rows.map((r) => ({ ...r, band: urgencyBand(asEngineOb(r), cmd.today) }));
+    views.sort((a, b) => sortForToday(asEngineOb(a), asEngineOb(b), cmd.today));
     const overdue = views.filter((v) => v.band === "overdue");
     const dueToday = views.filter((v) => v.band === "due_today");
     const startSoon = views.filter((v) => v.band === "start_soon");
@@ -93,7 +96,9 @@ export async function buildWeekPlan(
   cmd: { workspaceId: string; actorUserId: string; today: IsoDate },
 ): Promise<DayColumn[]> {
   return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
-    const rows = (await loadOpen(tx, cmd.workspaceId, cmd.actorUserId)).filter((r) => r.dueDate);
+    const rows: ObligationView[] = (await loadOpen(tx, cmd.workspaceId, cmd.actorUserId))
+      .filter((r) => r.dueDate)
+      .map((r) => ({ ...r, band: urgencyBand(asEngineOb(r), cmd.today) }));
     const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const cols: DayColumn[] = [];
     for (let i = 0; i < 7; i++) {
