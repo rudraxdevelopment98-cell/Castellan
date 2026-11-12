@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { objectDefs, obligations, records } from "./db/schema";
 import { withWorkspace, type AnyPgDb } from "./db/client";
+import { actorContextInTx, recordScopeCondition } from "./membership";
 import { addDays, diffDays, type IsoDate } from "@/lib/rules/dates";
 import { sortForToday, urgencyBand, type UrgencyBand } from "@/lib/rules/engine";
 import type { Obligation } from "@/lib/rules/types";
@@ -24,7 +25,12 @@ export interface ObligationView {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadOpen(tx: any, workspaceId: string): Promise<ObligationView[]> {
+async function loadOpen(tx: any, workspaceId: string, actorUserId: string): Promise<ObligationView[]> {
+  // Obligations name the record they belong to, so they follow record scope:
+  // a member only sees obligations for records they are allowed to see.
+  const me = await actorContextInTx(tx, workspaceId, actorUserId);
+  const scope = recordScopeCondition(me.scopeType, actorUserId);
+  const base = and(eq(obligations.workspaceId, workspaceId), inArray(obligations.status, ["open", "in_progress"]));
   const rows = await tx
     .select({
       id: obligations.id,
@@ -41,7 +47,7 @@ async function loadOpen(tx: any, workspaceId: string): Promise<ObligationView[]>
     .from(obligations)
     .innerJoin(records, eq(records.id, obligations.recordId))
     .innerJoin(objectDefs, eq(objectDefs.id, records.objectId))
-    .where(and(eq(obligations.workspaceId, workspaceId), inArray(obligations.status, ["open", "in_progress"])));
+    .where(scope ? and(base, scope) : base);
   return rows as unknown as (ObligationView & { reminderDates: string[]; status: string })[] as ObligationView[];
 }
 
@@ -66,7 +72,7 @@ export async function buildTodayPlan(
   cmd: { workspaceId: string; actorUserId: string; today: IsoDate },
 ): Promise<TodayPlan> {
   return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
-    const rows = await loadOpen(tx, cmd.workspaceId);
+    const rows = await loadOpen(tx, cmd.workspaceId, cmd.actorUserId);
     const views = rows.map((r) => ({ ...r, band: urgencyBand(asEngineOb(r as any), cmd.today) }));
     views.sort((a, b) => sortForToday(asEngineOb(a as any), asEngineOb(b as any), cmd.today));
     const overdue = views.filter((v) => v.band === "overdue");
@@ -87,7 +93,7 @@ export async function buildWeekPlan(
   cmd: { workspaceId: string; actorUserId: string; today: IsoDate },
 ): Promise<DayColumn[]> {
   return withWorkspace(db, { workspaceId: cmd.workspaceId, userId: cmd.actorUserId }, async (tx) => {
-    const rows = (await loadOpen(tx, cmd.workspaceId)).filter((r) => r.dueDate);
+    const rows = (await loadOpen(tx, cmd.workspaceId, cmd.actorUserId)).filter((r) => r.dueDate);
     const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const cols: DayColumn[] = [];
     for (let i = 0; i < 7; i++) {

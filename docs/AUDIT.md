@@ -15,9 +15,9 @@ Legend for status: `OPEN` (not yet fixed), `FIXED <commit>`, `DECISION NEEDED`.
 
 | Sev | Count | IDs |
 | --- | --- | --- |
-| Critical | 2 | C1, C2 |
+| Critical | 3 | C1, C2, C3 |
 | High | 12 | H1–H12 |
-| Medium | 9 | M1–M9 |
+| Medium | 10 | M1–M10 |
 | Low | 5 | L1–L5 |
 
 The tenant **cross-workspace** isolation model (Postgres RLS, `FORCE ROW LEVEL SECURITY`, fail-closed
@@ -29,7 +29,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 
 ## CRITICAL
 
-### C1 — Record fetch/mutate ignore record scope (within-workspace IDOR) — OPEN
+### C1 — Record fetch/mutate ignore record scope (within-workspace IDOR) — FIXED `f6fdaae`
 - **Area:** Authorisation / tenant scope
 - **Files:** `src/server/records.ts:239` (`getRecord`), `:249` (`getRecordHistory`), `:144` (`updateRecord`), `:210` (`softDeleteRecord`), `:225` (`restoreRecord`); consumed by `src/app/(platform)/w/[slug]/o/[objectApiName]/[recordId]/page.tsx`.
 - **What is wrong:** `getRecord` selects by `records.id` under `withWorkspace` only. RLS restricts to the
@@ -45,7 +45,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
   in `getRecord`, `getRecordHistory`, `updateRecord`, `softDeleteRecord`, `restoreRecord`. A denied id
   must return the same "not found" as a non-existent id. Add isolation tests for each.
 
-### C2 — Team / filter record scope unimplemented in the query layer — OPEN
+### C2 — Team / filter record scope unimplemented in the query layer — FIXED `f6fdaae` (fails closed; D1 open)
 - **Area:** Authorisation / tenant scope
 - **Files:** `src/server/records_query.ts:39`, `src/server/records.ts:279`.
 - **What is wrong:** Only `scope_type = 'assigned'` is enforced (`ownerId = actor`). `'team'` and
@@ -56,6 +56,17 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Proposed fix:** Implement team scope via `team_members`/record→team association in `buildWhere` and
   `listRecords`; until the association model is finalised, `'team'`/`'filter'` must **fail closed**
   (treat as `assigned` or empty) rather than open. Mark the association design `DECISION NEEDED`.
+
+### C3 — Today / This-week ignore record scope — FIXED (this commit)
+- **Area:** Authorisation / tenant scope (found during the C1/C2 fix; same class)
+- **Files:** `src/server/today.ts` (`loadOpen`, used by `buildTodayPlan` and `buildWeekPlan`).
+- **What is wrong:** Open obligations were loaded for the whole workspace and joined to the record title,
+  so a scope-restricted member saw the name, category and due date of every property's obligations, and
+  the Today counts revealed the size of the portfolio outside their scope.
+- **Reproduce:** As an `assigned`-scope member, open `/w/<slug>/today` — obligations for records owned by
+  others are listed.
+- **Fix:** `loadOpen` applies the same `recordScopeCondition` through the existing join on `records`.
+  Covered by two cases in `test/record-scope.test.ts`.
 
 ---
 
@@ -200,6 +211,11 @@ the chain, and several actions (sign-in, export, role change) are not recorded. 
 `records_query.buildWhere` binds filter **values** as parameters (no SQLi), but field names come straight
 from client input without an allow-list check against the object's fields (defense-in-depth).
 `src/server/records_query.ts:45`.
+
+### M10 — `npm run lint` cannot run — OPEN
+There is no ESLint configuration and no `eslint` dependency, so `next lint` drops into an interactive
+set-up prompt. The lint gate required by the audit brief is therefore not a gate at all. `package.json`.
+Fix: add `eslint` + `eslint-config-next` with a flat config and a non-interactive `lint` script.
 
 ---
 

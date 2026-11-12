@@ -15,6 +15,8 @@ import {
   softDeleteRecord,
 } from "@/server/records";
 import { queryRecords } from "@/server/records_query";
+import { regenerateObligations } from "@/server/obligations_gen";
+import { buildTodayPlan, buildWeekPlan } from "@/server/today";
 
 /**
  * AUDIT C1/C2: record scope must be enforced on every read and mutate path.
@@ -46,7 +48,7 @@ async function addMember(
 }
 
 async function makeRecord(ownerId: string, name: string): Promise<string> {
-  const res = await createRecord(db, { workspaceId: ws, actorUserId: owner, objectId, input: { name }, ownerId });
+  const res = await createRecord(db, { workspaceId: ws, actorUserId: owner, objectId, input: { name, insurance_end: "2027-06-01" }, ownerId });
   if (!res.ok) throw new Error("record create failed");
   return res.recordId;
 }
@@ -74,6 +76,8 @@ beforeAll(async () => {
   recOwner = await makeRecord(owner, "Owner House");
   recBob = await makeRecord(bob, "Bob House");
   recCara = await makeRecord(cara, "Cara House");
+  // Every record now has an insurance renewal obligation due 2027-06-01.
+  await regenerateObligations(db, { workspaceId: ws, actorUserId: owner });
 });
 
 afterAll(async () => {
@@ -127,5 +131,20 @@ describe("record scope enforcement (AUDIT C1/C2)", () => {
     const rows = await listRecords(db, { workspaceId: ws, actorUserId: cara, objectId });
     expect(rows.map((r: { id: string }) => r.id)).toEqual([recCara]);
     expect(await getRecord(db, { workspaceId: ws, actorUserId: cara, recordId: recOwner })).toBeNull();
+  });
+
+  it("Today only shows obligations for records in scope (AUDIT C3)", async () => {
+    const all = await buildTodayPlan(db, { workspaceId: ws, actorUserId: owner, today: "2027-06-02" });
+    expect(new Set(all.overdue.map((o) => o.recordLabel))).toEqual(new Set(["Owner House", "Bob House", "Cara House"]));
+
+    const mine = await buildTodayPlan(db, { workspaceId: ws, actorUserId: bob, today: "2027-06-02" });
+    expect(mine.overdue.map((o) => o.recordLabel)).toEqual(["Bob House"]);
+    expect(mine.counts.total).toBe(1);
+  });
+
+  it("This-week only shows obligations for records in scope (AUDIT C3)", async () => {
+    const cols = await buildWeekPlan(db, { workspaceId: ws, actorUserId: cara, today: "2027-06-01" });
+    const labels = cols.flatMap((c) => c.items.map((i) => i.recordLabel));
+    expect(labels).toEqual(["Cara House"]);
   });
 });
