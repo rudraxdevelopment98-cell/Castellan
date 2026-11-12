@@ -6,6 +6,7 @@ import { getDb } from "@/server/db/client";
 import { getObjectByApiName } from "@/server/metadata";
 import { getRecord, getRecordHistory } from "@/server/records";
 import { listDocuments } from "@/server/documents";
+import { can } from "@/server/rbac";
 import { RecordForm } from "@/components/RecordForm";
 import { DocumentsManager, type DocItem } from "@/components/DocumentsManager";
 import { formatFieldValue } from "@/lib/fieldDisplay";
@@ -73,6 +74,8 @@ export default async function RecordDetail({
           recordId={recordId}
           objectApiName={objectApiName}
           compact
+          canEdit={can(membership.role, "records.edit")}
+          canDelete={can(membership.role, "records.delete")}
         />
       </section>
 

@@ -1,6 +1,7 @@
 import { currentUser } from "@/server/session";
 import { resolveWorkspaceForUser } from "@/server/context";
 import { getDb } from "@/server/db/client";
+import { PermissionError } from "@/server/rbac";
 import {
   createDocument,
   softDeleteDocument,
@@ -18,6 +19,16 @@ async function auth(slug: string | null) {
   const membership = await resolveWorkspaceForUser(user.id, slug);
   if (!membership) return { error: "No access to this workspace", status: 403 as const };
   return { user, membership };
+}
+
+/** Run a document mutation, mapping a missing capability to 403. */
+async function guarded(fn: () => Promise<Response>): Promise<Response> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof PermissionError) return Response.json({ error: "Not permitted" }, { status: 403 });
+    throw e;
+  }
 }
 
 function parseReminderDays(raw: string | null): number[] | undefined {
@@ -48,21 +59,23 @@ export async function POST(req: Request) {
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const db = await getDb();
-  const res = await createDocument(db, {
-    workspaceId: a.membership.workspaceId,
-    actorUserId: a.user.id,
-    filename: file.name || "upload",
-    mime: file.type || "application/octet-stream",
-    bytes,
-    title: (form.get("title") as string) || null,
-    recordId: (form.get("recordId") as string) || null,
-    objectApiName: (form.get("objectApiName") as string) || null,
-    docType: (form.get("docType") as string) || null,
-    keyDate: (form.get("keyDate") as string) || null,
-    reminderDays: parseReminderDays(form.get("reminderDays") as string | null),
-    note: (form.get("note") as string) || null,
+  return guarded(async () => {
+    const res = await createDocument(db, {
+      workspaceId: a.membership.workspaceId,
+      actorUserId: a.user.id,
+      filename: file.name || "upload",
+      mime: file.type || "application/octet-stream",
+      bytes,
+      title: (form.get("title") as string) || null,
+      recordId: (form.get("recordId") as string) || null,
+      objectApiName: (form.get("objectApiName") as string) || null,
+      docType: (form.get("docType") as string) || null,
+      keyDate: (form.get("keyDate") as string) || null,
+      reminderDays: parseReminderDays(form.get("reminderDays") as string | null),
+      note: (form.get("note") as string) || null,
+    });
+    return Response.json(res, { status: res.ok ? 200 : 422 });
   });
-  return Response.json(res, { status: res.ok ? 200 : 422 });
 }
 
 /** Edit a document's metadata (key date, type, note). */
@@ -72,17 +85,20 @@ export async function PATCH(req: Request) {
   if ("error" in a) return Response.json({ error: a.error }, { status: a.status });
   if (!body?.id) return Response.json({ error: "Bad request" }, { status: 400 });
   const db = await getDb();
-  const res = await updateDocumentMeta(db, {
-    workspaceId: a.membership.workspaceId,
-    actorUserId: a.user.id,
-    id: body.id,
-    title: body.title,
-    docType: body.docType,
-    keyDate: body.keyDate,
-    reminderDays: body.reminderDays,
-    note: body.note,
+  return guarded(async () => {
+    const res = await updateDocumentMeta(db, {
+      workspaceId: a.membership.workspaceId,
+      actorUserId: a.user.id,
+      id: body.id,
+      title: body.title,
+      docType: body.docType,
+      keyDate: body.keyDate,
+      reminderDays: body.reminderDays,
+      note: body.note,
+    });
+    // An out-of-scope document is reported exactly like a missing one.
+    return Response.json(res.ok ? res : { error: "Not found" }, { status: res.ok ? 200 : 404 });
   });
-  return Response.json(res);
 }
 
 export async function DELETE(req: Request) {
@@ -91,10 +107,12 @@ export async function DELETE(req: Request) {
   if ("error" in a) return Response.json({ error: a.error }, { status: a.status });
   if (!body?.id) return Response.json({ error: "Bad request" }, { status: 400 });
   const db = await getDb();
-  const res = await softDeleteDocument(db, {
-    workspaceId: a.membership.workspaceId,
-    actorUserId: a.user.id,
-    id: body.id,
+  return guarded(async () => {
+    const res = await softDeleteDocument(db, {
+      workspaceId: a.membership.workspaceId,
+      actorUserId: a.user.id,
+      id: body.id,
+    });
+    return Response.json(res.ok ? res : { error: "Not found" }, { status: res.ok ? 200 : 404 });
   });
-  return Response.json(res);
 }

@@ -158,7 +158,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Proposed fix:** Always perform a dummy Argon2 verify against a fixed hash when the user is missing;
   return the generic message for locked accounts too (or a generic "try later" that does not distinguish).
 
-### H12 — Documents are not record-scope aware — OPEN
+### H12 — Documents are not record-scope aware and have no capability checks — FIXED (H12 commit)
 - **Files:** `src/server/documents.ts` (`listDocuments`, `getDocumentBytes`), `src/app/api/documents/[id]/route.ts`.
 - **What is wrong:** Document listing/download are scoped only by workspace (RLS). A member with
   `assigned`/`team` scope can list every workspace document and download any by id, regardless of whether

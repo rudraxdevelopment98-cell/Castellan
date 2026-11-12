@@ -3,6 +3,7 @@ import { requireUser } from "@/server/session";
 import { resolveWorkspaceForUser } from "@/server/context";
 import { getDb } from "@/server/db/client";
 import { listDocuments } from "@/server/documents";
+import { can } from "@/server/rbac";
 import { PageHeader, Content, Stat } from "@/components/primitives";
 import { DocumentsManager, type DocItem } from "@/components/DocumentsManager";
 
@@ -56,7 +57,13 @@ export default async function DocumentsPage({ params }: { params: Promise<{ slug
           <Stat label="Overdue" value={overdue} tone={overdue > 0 ? "overdue" : "ok"} />
         </div>
 
-        <DocumentsManager slug={slug} documents={docs} docTypeOptions={typeOptions} />
+        <DocumentsManager
+          slug={slug}
+          documents={docs}
+          docTypeOptions={typeOptions}
+          canEdit={can(membership.role, "records.edit")}
+          canDelete={can(membership.role, "records.delete")}
+        />
       </Content>
     </>
   );

@@ -50,6 +50,8 @@ export function DocumentsManager({
   objectApiName,
   docTypeOptions = [],
   compact = false,
+  canEdit = true,
+  canDelete = true,
 }: {
   slug: string;
   documents: DocItem[];
@@ -57,6 +59,10 @@ export function DocumentsManager({
   objectApiName?: string;
   docTypeOptions?: string[];
   compact?: boolean;
+  /** Whether this member may upload (server enforces it regardless). */
+  canEdit?: boolean;
+  /** Whether this member may remove documents (server enforces it regardless). */
+  canDelete?: boolean;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -110,7 +116,7 @@ export function DocumentsManager({
 
   return (
     <div className="space-y-4">
-      {compact && (
+      {canEdit && compact && (
         <button
           onClick={() => setOpen((v) => !v)}
           className="rounded-ctl border border-rule bg-surface px-3 py-1.5 text-table font-medium text-ink hover:bg-canvas"
@@ -119,7 +125,7 @@ export function DocumentsManager({
         </button>
       )}
 
-      {open && (
+      {canEdit && open && (
         <form
           ref={formRef}
           onSubmit={onUpload}
@@ -175,7 +181,9 @@ export function DocumentsManager({
 
       {documents.length === 0 ? (
         <p className="rounded-panel border border-dashed border-rule bg-canvas px-4 py-6 text-center text-body text-ink-muted">
-          No documents yet. Upload a file above — add a key date and we&apos;ll remind you before it expires.
+          {canEdit
+            ? "No documents yet. Upload a file above — add a key date and we'll remind you before it expires."
+            : "No documents yet."}
         </p>
       ) : (
         <div className="overflow-hidden rounded-panel border border-rule bg-surface">
@@ -224,12 +232,14 @@ export function DocumentsManager({
                     </td>
                     <td className="px-4 py-2.5 tnum text-ink-muted">{fmtSize(d.size)}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <button
-                        onClick={() => onDelete(d.id)}
-                        className="text-meta text-ink-muted hover:text-overdue"
-                      >
-                        Remove
-                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => onDelete(d.id)}
+                          className="text-meta text-ink-muted hover:text-overdue"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

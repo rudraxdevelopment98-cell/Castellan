@@ -1,6 +1,8 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
-import { documents } from "./db/schema";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { documents, records } from "./db/schema";
 import { withWorkspace, type AnyPgDb } from "./db/client";
+import { actorContextInTx, recordInScope } from "./membership";
+import { requireCap } from "./rbac";
 
 /**
  * Documents domain: store uploaded files in the database (bytea), list and fetch
@@ -9,6 +11,12 @@ import { withWorkspace, type AnyPgDb } from "./db/client";
  *
  * Byte payloads are never selected in list queries — only when a single file is
  * downloaded — so listing stays cheap.
+ *
+ * Authorisation (AUDIT H12): uploading and editing need `records.edit`-level
+ * rights, removing needs `records.delete`, and every path honours record scope.
+ * A scope-restricted member sees a document only if it is attached to a record
+ * in their scope, or it is unattached and they uploaded it. An out-of-scope id
+ * behaves exactly like one that does not exist.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,6 +72,28 @@ function toMeta(r: Record<string, unknown>): DocumentMeta {
   };
 }
 
+/** Scope predicate over `documents LEFT JOIN records` (null = no restriction). */
+function documentScopeCondition(scopeType: string, actorUserId: string) {
+  if (scopeType === "all") return null;
+  return or(
+    eq(records.ownerId, actorUserId),
+    and(isNull(documents.recordId), eq(documents.uploadedBy, actorUserId)),
+  );
+}
+
+/** Load one live document's scope-relevant columns, or null if not visible. */
+async function visibleDocument(tx: Tx, workspaceId: string, actorUserId: string, scopeType: string, id: string) {
+  const scope = documentScopeCondition(scopeType, actorUserId);
+  const base = and(eq(documents.workspaceId, workspaceId), eq(documents.id, id), isNull(documents.deletedAt));
+  const [row] = await tx
+    .select({ id: documents.id })
+    .from(documents)
+    .leftJoin(records, eq(records.id, documents.recordId))
+    .where(scope ? and(base, scope) : base)
+    .limit(1);
+  return row ?? null;
+}
+
 export interface CreateDocumentInput {
   workspaceId: string;
   actorUserId: string;
@@ -92,6 +122,19 @@ export async function createDocument(
   if (input.keyDate && !keyDate) return { ok: false, error: "Key date must be a valid date." };
 
   return withWorkspace(db, { workspaceId: input.workspaceId, userId: input.actorUserId }, async (tx: Tx) => {
+    const me = await actorContextInTx(tx, input.workspaceId, input.actorUserId);
+    requireCap(me.role, "records.edit");
+    if (input.recordId) {
+      // The linked record must exist in this workspace and be in the actor's scope.
+      const [rec] = await tx
+        .select({ ownerId: records.ownerId })
+        .from(records)
+        .where(and(eq(records.workspaceId, input.workspaceId), eq(records.id, input.recordId), isNull(records.deletedAt)))
+        .limit(1);
+      if (!rec || !recordInScope(me.scopeType, input.actorUserId, rec.ownerId as string | null)) {
+        return { ok: false as const, error: "Record not found." };
+      }
+    }
     const [row] = await tx
       .insert(documents)
       .values({
@@ -119,10 +162,17 @@ export async function listDocuments(
   args: { workspaceId: string; actorUserId: string; recordId?: string },
 ): Promise<DocumentMeta[]> {
   return withWorkspace(db, { workspaceId: args.workspaceId, userId: args.actorUserId }, async (tx: Tx) => {
-    const where = args.recordId
+    const me = await actorContextInTx(tx, args.workspaceId, args.actorUserId);
+    const scope = documentScopeCondition(me.scopeType, args.actorUserId);
+    const base = args.recordId
       ? and(eq(documents.workspaceId, args.workspaceId), isNull(documents.deletedAt), eq(documents.recordId, args.recordId))
       : and(eq(documents.workspaceId, args.workspaceId), isNull(documents.deletedAt));
-    const rows = await tx.select(META_COLS).from(documents).where(where).orderBy(desc(documents.createdAt));
+    const rows = await tx
+      .select(META_COLS)
+      .from(documents)
+      .leftJoin(records, eq(records.id, documents.recordId))
+      .where(scope ? and(base, scope) : base)
+      .orderBy(desc(documents.createdAt));
     return rows.map(toMeta);
   });
 }
@@ -143,12 +193,14 @@ export async function getDocumentBytes(
   args: { workspaceId: string; actorUserId: string; id: string },
 ): Promise<{ filename: string; mime: string; bytes: Buffer } | null> {
   return withWorkspace(db, { workspaceId: args.workspaceId, userId: args.actorUserId }, async (tx: Tx) => {
+    const me = await actorContextInTx(tx, args.workspaceId, args.actorUserId);
+    if (!(await visibleDocument(tx, args.workspaceId, args.actorUserId, me.scopeType, args.id))) return null;
     const [row] = await tx
-      .select({ filename: documents.filename, mime: documents.mime, bytes: documents.bytes, deletedAt: documents.deletedAt })
+      .select({ filename: documents.filename, mime: documents.mime, bytes: documents.bytes })
       .from(documents)
       .where(and(eq(documents.workspaceId, args.workspaceId), eq(documents.id, args.id)))
       .limit(1);
-    if (!row || row.deletedAt) return null;
+    if (!row) return null;
     const bytes = Buffer.isBuffer(row.bytes) ? row.bytes : Buffer.from(row.bytes as Uint8Array);
     return { filename: String(row.filename), mime: String(row.mime), bytes };
   });
@@ -169,6 +221,9 @@ export async function updateDocumentMeta(
 ): Promise<{ ok: boolean }> {
   const keyDate = normalizeDate(args.keyDate);
   return withWorkspace(db, { workspaceId: args.workspaceId, userId: args.actorUserId }, async (tx: Tx) => {
+    const me = await actorContextInTx(tx, args.workspaceId, args.actorUserId);
+    requireCap(me.role, "records.edit");
+    if (!(await visibleDocument(tx, args.workspaceId, args.actorUserId, me.scopeType, args.id))) return { ok: false };
     const patch: Record<string, unknown> = {};
     if (args.title !== undefined) patch.title = args.title?.trim() || null;
     if (args.docType !== undefined) patch.docType = args.docType?.trim() || null;
@@ -189,6 +244,9 @@ export async function softDeleteDocument(
   args: { workspaceId: string; actorUserId: string; id: string },
 ): Promise<{ ok: boolean }> {
   return withWorkspace(db, { workspaceId: args.workspaceId, userId: args.actorUserId }, async (tx: Tx) => {
+    const me = await actorContextInTx(tx, args.workspaceId, args.actorUserId);
+    requireCap(me.role, "records.delete");
+    if (!(await visibleDocument(tx, args.workspaceId, args.actorUserId, me.scopeType, args.id))) return { ok: false };
     await tx
       .update(documents)
       .set({ deletedAt: new Date() })
