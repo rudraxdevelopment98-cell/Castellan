@@ -3,10 +3,15 @@ import { emailDeliveries } from "../db/schema";
 import { asService, getDb } from "../db/client";
 
 /**
- * Outbound email (AUDIT H5/H6/H9). Production sends through Resend's HTTP API;
- * without RESEND_API_KEY, development and tests collect messages in an
- * in-process outbox instead, and production refuses (and records the failure)
- * rather than pretending to send.
+ * Outbound email (AUDIT H5/H6/H9). Two providers, chosen by configuration:
+ *
+ *  - Resend (RESEND_API_KEY) — needs a verified sending domain to reach
+ *    anyone but the Resend account owner.
+ *  - SMTP (SMTP_USER + SMTP_PASS) — set up for Gmail with an app password, so
+ *    a sender without a domain can still reach customers.
+ *
+ * With neither, development and tests collect messages in an in-process outbox
+ * and production refuses (and records the failure) rather than pretending.
  *
  * Every attempt is recorded in `email_deliveries` — recipient, kind, outcome,
  * provider id — but never the body, because links in it carry single-use
@@ -45,20 +50,73 @@ export type SendResult =
 const g = globalThis as unknown as { __castellanDevOutbox?: OutgoingEmail[] };
 export const devOutbox: OutgoingEmail[] = (g.__castellanDevOutbox ??= []);
 
+/** Tests only: drop the cached SMTP transport so a new mock is picked up. */
+export function _resetSmtpForTests(): void {
+  smtpTransport = null;
+}
+
+export type EmailProvider = "resend" | "smtp" | null;
+
+export function emailProvider(): EmailProvider {
+  if (process.env.RESEND_API_KEY) return "resend";
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) return "smtp";
+  return null;
+}
+
 export function emailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY);
+  return emailProvider() !== null;
 }
 
 function fromAddress(): string {
-  // Resend's shared sender works without a verified domain, but can only
-  // deliver to the Resend account's own address. Set EMAIL_FROM to an address
-  // on a verified domain before inviting real users.
-  return process.env.EMAIL_FROM || "Castellan <onboarding@resend.dev>";
+  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+  // Gmail sends as the signed-in account whatever the header says, so default
+  // to it. Resend's shared sender only reaches the Resend account's own inbox.
+  if (emailProvider() === "smtp") return `Castellan <${process.env.SMTP_USER}>`;
+  return "Castellan <onboarding@resend.dev>";
+}
+
+type ProviderOutcome = { id: string | null } | { error: string; retry: boolean };
+
+// One pooled transport per process; created on first use.
+let smtpTransport: import("nodemailer").Transporter | null = null;
+
+async function sendViaSmtp(msg: OutgoingEmail): Promise<ProviderOutcome> {
+  if (!smtpTransport) {
+    const nodemailer = (await import("nodemailer")).default;
+    const port = Number(process.env.SMTP_PORT || 465);
+    smtpTransport = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port,
+      secure: port === 465, // implicit TLS on 465; STARTTLS is required otherwise
+      requireTLS: port !== 465,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
+    });
+  }
+  try {
+    const info = await smtpTransport.sendMail({
+      from: fromAddress(),
+      to: msg.to,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+    });
+    return { id: info.messageId ?? null };
+  } catch (e) {
+    const err = e as { responseCode?: number; code?: string };
+    // 4xx replies and network failures are worth retrying; 5xx (bad address,
+    // auth rejected) are not. Never include the server's full reply.
+    const code = err.responseCode;
+    const retry = code ? code >= 400 && code < 500 : true;
+    return { error: `smtp ${code ?? err.code ?? "error"}`, retry };
+  }
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function sendViaResend(msg: OutgoingEmail): Promise<{ id: string | null } | { error: string; retry: boolean }> {
+async function sendViaResend(msg: OutgoingEmail): Promise<ProviderOutcome> {
   let res: Response;
   try {
     res = await fetch("https://api.resend.com/emails", {
@@ -131,9 +189,10 @@ async function alreadySent(dedupeKey: string): Promise<boolean> {
 export async function sendEmail(msg: OutgoingEmail, opts: { retryDelayMs?: number } = {}): Promise<SendResult> {
   if (msg.dedupeKey && (await alreadySent(msg.dedupeKey))) return { ok: true, id: null, skipped: true };
 
-  if (!emailConfigured()) {
+  const provider = emailProvider();
+  if (!provider) {
     if (process.env.NODE_ENV === "production") {
-      const error = "Email delivery is not configured (RESEND_API_KEY is missing).";
+      const error = "Email delivery is not configured (set SMTP_USER/SMTP_PASS or RESEND_API_KEY).";
       await record(msg, "failed", { error });
       return { ok: false, error };
     }
@@ -145,7 +204,7 @@ export async function sendEmail(msg: OutgoingEmail, opts: { retryDelayMs?: numbe
   const delay = opts.retryDelayMs ?? 500;
   let lastError = "unknown error";
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const r = await sendViaResend(msg);
+    const r = provider === "resend" ? await sendViaResend(msg) : await sendViaSmtp(msg);
     if ("id" in r) {
       await record(msg, "sent", { providerId: r.id, attempts: attempt });
       return { ok: true, id: r.id };

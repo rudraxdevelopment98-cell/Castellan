@@ -2,7 +2,7 @@
   "name": "castellan",
   "version": "2.0.0",
   "private": true,
-  "description": "Castellan \u2014 a multi-tenant, metadata-driven operations platform: records, documents, dated obligations, teams, reminders and answers. Any organisation shapes it around its own data.",
+  "description": "Castellan — a multi-tenant, metadata-driven operations platform: records, documents, dated obligations, teams, reminders and answers. Any organisation shapes it around its own data.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -22,6 +22,7 @@
     "drizzle-orm": "^0.38.4",
     "nanoid": "^5.0.9",
     "next": "^15.5.26",
+    "nodemailer": "^7.0.13",
     "otplib": "^12.0.1",
     "postgres": "^3.4.5",
     "react": "18.3.1",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
     "@types/node": "22.10.7",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "18.3.18",
     "@types/react-dom": "18.3.5",
     "autoprefixer": "10.4.20",
