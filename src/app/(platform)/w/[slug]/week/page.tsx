@@ -4,7 +4,7 @@ import { requireUser } from "@/server/session";
 import { resolveWorkspaceForUser } from "@/server/context";
 import { getDb } from "@/server/db/client";
 import { buildWeekPlan } from "@/server/today";
-import { getToday } from "@/lib/domain/clock";
+import { todayInZone } from "@/lib/rules/dates";
 
 export default async function WeekPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -12,7 +12,7 @@ export default async function WeekPage({ params }: { params: Promise<{ slug: str
   const membership = await resolveWorkspaceForUser(user.id, slug);
   if (!membership) redirect("/onboarding");
   const db = await getDb();
-  const week = await buildWeekPlan(db, { workspaceId: membership.workspaceId, actorUserId: user.id, today: getToday() });
+  const week = await buildWeekPlan(db, { workspaceId: membership.workspaceId, actorUserId: user.id, today: todayInZone(membership.timezone) });
 
   return (
     <div className="space-y-4">

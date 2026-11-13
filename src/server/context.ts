@@ -14,6 +14,8 @@ export interface WorkspaceMembership {
   slug: string;
   name: string;
   role: Role;
+  /** IANA zone; "today" for the workspace is computed in it. */
+  timezone: string;
 }
 
 export async function getMembershipsForUser(userId: string): Promise<WorkspaceMembership[]> {
@@ -25,15 +27,17 @@ export async function getMembershipsForUser(userId: string): Promise<WorkspaceMe
         slug: workspaces.slug,
         name: workspaces.name,
         role: memberships.role,
+        timezone: workspaces.timezone,
       })
       .from(memberships)
       .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
       .where(eq(memberships.userId, userId));
-    return rows.map((r: { workspaceId: string; slug: string; name: string; role: string }) => ({
+    return rows.map((r: { workspaceId: string; slug: string; name: string; role: string; timezone: string }) => ({
       workspaceId: r.workspaceId,
       slug: r.slug,
       name: r.name,
       role: r.role as Role,
+      timezone: r.timezone,
     }));
   });
 }
@@ -51,6 +55,7 @@ export async function resolveWorkspaceForUser(
         slug: workspaces.slug,
         name: workspaces.name,
         role: memberships.role,
+        timezone: workspaces.timezone,
       })
       .from(memberships)
       .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
@@ -62,6 +67,7 @@ export async function resolveWorkspaceForUser(
       slug: row.slug as string,
       name: row.name as string,
       role: row.role as Role,
+      timezone: row.timezone as string,
     };
   });
 }

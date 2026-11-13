@@ -102,14 +102,23 @@ export function maxDate(a: IsoDate, b: IsoDate): IsoDate {
 
 /** Today in Europe/London as a calendar date, independent of server timezone. */
 export function todayInLondon(now: Date = new Date()): IsoDate {
-  // en-CA gives YYYY-MM-DD; timeZone pins it to London regardless of host TZ.
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return fmt.format(now);
+  return todayInZone("Europe/London", now);
+}
+
+/**
+ * The calendar date right now in an IANA time zone, as YYYY-MM-DD. "Today"
+ * always means the workspace's today, not the server's (servers run in UTC).
+ * An unknown zone falls back to Europe/London rather than failing.
+ */
+export function todayInZone(timeZone: string, now: Date = new Date()): IsoDate {
+  const fmt = (tz: string) =>
+    // en-CA gives YYYY-MM-DD; timeZone pins it regardless of the host's zone.
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  try {
+    return fmt(timeZone);
+  } catch {
+    return fmt("Europe/London");
+  }
 }
 
 /** UK display format: "14 Oct 2027". Never the ambiguous 03/04 form. */

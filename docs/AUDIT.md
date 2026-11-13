@@ -15,7 +15,7 @@ Legend for status: `OPEN` (not yet fixed), `FIXED <commit>`, `DECISION NEEDED`.
 
 | Sev | Count | IDs |
 | --- | --- | --- |
-| Critical | 4 | C1, C2, C3, C4 |
+| Critical | 5 | C1, C2, C3, C4, C5 |
 | High | 13 | H1–H13 |
 | Medium | 10 | M1–M10 |
 | Low | 5 | L1–L5 |
@@ -82,6 +82,19 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Fix:** Form fields are read through a helper that maps an absent field to `undefined`
   (`parseSignInForm`, `parseSignUpForm`). Covered by `test/auth-forms.test.ts` and verified end to end in a
   browser (sign up -> sign out -> sign in).
+
+### C5 — Real workspaces computed "today" on a frozen demo date — FIXED (C5 commit)
+- **Area:** Core product behaviour (found while documenting environment variables)
+- **Files:** `src/app/(platform)/w/[slug]/today/page.tsx`, `.../week/page.tsx`, `src/lib/domain/clock.ts`.
+- **What is wrong:** The platform's Today and This-week pages used the demo's `getToday()`, which returns the
+  fixed date 2026-09-30 unless `CASTELLAN_LIVE_CLOCK=1` is set — and production does not set it. Every real
+  workspace therefore banded obligations as of 30 September: anything due since then was never shown as
+  overdue or due today. For a product whose purpose is that nothing lapses silently, this defeats the
+  product. It also ignored the workspace's time zone.
+- **Reproduce:** Create an obligation due yesterday in a real workspace; Today does not list it as overdue.
+- **Fix:** Platform pages compute `todayInZone(workspace.timezone)`; the workspace membership now carries
+  its time zone. The fixed date is documented as demo-only. `test/clock.test.ts` covers zone boundaries and
+  BST, and fails if any platform page or server module imports the demo clock.
 
 ---
 

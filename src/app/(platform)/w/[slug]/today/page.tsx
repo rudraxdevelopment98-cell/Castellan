@@ -4,8 +4,7 @@ import { requireUser } from "@/server/session";
 import { resolveWorkspaceForUser } from "@/server/context";
 import { getDb } from "@/server/db/client";
 import { buildTodayPlan, type ObligationView } from "@/server/today";
-import { getToday } from "@/lib/domain/clock";
-import { formatUkDate, diffDays } from "@/lib/rules/dates";
+import { formatUkDate, diffDays, todayInZone } from "@/lib/rules/dates";
 import { regenerateObligationsAction } from "../../../actions";
 
 function relative(due: string | null, today: string): string {
@@ -32,7 +31,7 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
   const membership = await resolveWorkspaceForUser(user.id, slug);
   if (!membership) redirect("/onboarding");
   const db = await getDb();
-  const today = getToday();
+  const today = todayInZone(membership.timezone);
   const plan = await buildTodayPlan(db, { workspaceId: membership.workspaceId, actorUserId: user.id, today });
   const lines = brief(plan);
 
