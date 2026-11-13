@@ -1,5 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { objectDefs, obligations, records } from "./db/schema";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { documents, objectDefs, obligations, records } from "./db/schema";
+import { documentScopeCondition } from "./documents";
 import { withWorkspace, type AnyPgDb } from "./db/client";
 import { actorContextInTx, recordScopeCondition } from "./membership";
 import { addDays, diffDays, type IsoDate } from "@/lib/rules/dates";
@@ -18,10 +19,14 @@ export interface ObligationView {
   why: string | null;
   category: string;
   dueDate: IsoDate | null;
+  /** Empty for a document not attached to any record. */
   recordId: string;
   recordLabel: string;
   objectApiName: string;
   band: UrgencyBand;
+  /** Where the item came from: a rule over a record, or a document's key date. */
+  source: "rule" | "document";
+  documentId?: string;
 }
 
 /** An open obligation as loaded, before it is banded for a given day. */
@@ -51,7 +56,55 @@ async function loadOpen(tx: any, workspaceId: string, actorUserId: string): Prom
     .innerJoin(records, eq(records.id, obligations.recordId))
     .innerJoin(objectDefs, eq(objectDefs.id, records.objectId))
     .where(scope ? and(base, scope) : base);
-  return rows as OpenRow[];
+  const fromRules = (rows as Omit<OpenRow, "source">[]).map((r) => ({ ...r, source: "rule" as const }));
+  return [...fromRules, ...(await loadDocumentDates(tx, workspaceId, actorUserId, me.scopeType))];
+}
+
+/**
+ * Documents with a key date are due items too (one place for everything that
+ * can lapse). The date was typed by a person when uploading, so it is a
+ * confirmed date; reminders follow the document's own ladder.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadDocumentDates(tx: any, workspaceId: string, actorUserId: string, scopeType: string): Promise<OpenRow[]> {
+  const scope = documentScopeCondition(scopeType, actorUserId);
+  const base = and(eq(documents.workspaceId, workspaceId), isNull(documents.deletedAt), isNotNull(documents.keyDate));
+  const rows = await tx
+    .select({
+      id: documents.id,
+      title: documents.title,
+      filename: documents.filename,
+      docType: documents.docType,
+      note: documents.note,
+      keyDate: documents.keyDate,
+      reminderDays: documents.reminderDays,
+      recordId: documents.recordId,
+      recordLabel: records.title,
+      objectApiName: objectDefs.apiName,
+    })
+    .from(documents)
+    .leftJoin(records, eq(records.id, documents.recordId))
+    .leftJoin(objectDefs, eq(objectDefs.id, records.objectId))
+    .where(scope ? and(base, scope) : base);
+  return rows.map(
+    (d: {
+      id: string; title: string | null; filename: string; docType: string | null; note: string | null;
+      keyDate: string; reminderDays: number[] | null; recordId: string | null; recordLabel: string | null; objectApiName: string | null;
+    }) => ({
+      id: `doc:${d.id}`,
+      documentId: d.id,
+      source: "document" as const,
+      title: `${d.title || d.filename} renewal`,
+      why: d.note || "Key date on an uploaded document.",
+      category: d.docType || "Document",
+      dueDate: d.keyDate,
+      reminderDates: (d.reminderDays ?? []).map((n) => addDays(d.keyDate, -n)),
+      status: "open",
+      recordId: d.recordId ?? "",
+      recordLabel: d.recordLabel ?? "Not attached to anything",
+      objectApiName: d.objectApiName ?? "",
+    }),
+  );
 }
 
 function asEngineOb(v: { dueDate: string | null; reminderDates?: string[]; status?: string }): Obligation {

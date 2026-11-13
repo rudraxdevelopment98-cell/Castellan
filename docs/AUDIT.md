@@ -16,7 +16,7 @@ Legend for status: `OPEN` (not yet fixed), `FIXED <commit>`, `DECISION NEEDED`.
 | Sev | Count | IDs |
 | --- | --- | --- |
 | Critical | 5 | C1, C2, C3, C4, C5 |
-| High | 13 | H1–H13 |
+| High | 14 | H1–H14 |
 | Medium | 10 | M1–M10 |
 | Low | 5 | L1–L5 |
 
@@ -211,6 +211,16 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
   `Content-Security-Policy: default-src 'none'; sandbox`; `nosniff` on every response; filenames reduced to a
   plain name. A non-member now gets the same 404 as a missing document. Covered by `test/uploads.test.ts`
   and two integration cases in `test/documents.test.ts`.
+
+### H14 — Document expiry dates never reached Today — FIXED (H14 commit)
+- **Area:** Core product behaviour (found while mapping the data model for the owner)
+- **Files:** `src/server/today.ts`.
+- **What is wrong:** A document's key date (insurance renewal, MOT, passport expiry) only showed as a
+  countdown on the Documents page. Today, This week — and therefore the daily brief built from them — only
+  listed rule-generated obligations, so the personal/home use case had no daily reminder at all.
+- **Fix:** Today and This week also load documents with a key date, banded by the same engine (overdue, due
+  today, or on one of the document's reminder days), with record scope applied and a link to the record or
+  the Documents page. `test/today-documents.test.ts` (6 cases, all fail on the previous code).
 
 ---
 

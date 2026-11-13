@@ -48,7 +48,7 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
               <span className="min-w-0 flex-1">
                 <span className="font-medium text-ink">{o.title}</span>
                 <span className="text-ink-muted"> · </span>
-                <Link href={`/w/${slug}/o/${o.objectApiName}/${o.recordId}`} className="text-ink hover:text-brand">{o.recordLabel}</Link>
+                <Link href={o.recordId ? `/w/${slug}/o/${o.objectApiName}/${o.recordId}` : `/w/${slug}/documents`} className="text-ink hover:text-brand">{o.recordLabel}</Link>
                 {o.why && <span className="block text-meta text-ink-muted">{o.why}</span>}
               </span>
               <span className={`tnum text-meta ${tone === "overdue" ? "text-overdue" : "text-ink-muted"}`}>

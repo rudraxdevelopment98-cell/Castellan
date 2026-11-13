@@ -30,7 +30,7 @@ export default async function WeekPage({ params }: { params: Promise<{ slug: str
               ) : (
                 col.items.slice(0, 40).map((o) => (
                   <li key={o.id}>
-                    <Link href={`/w/${slug}/o/${o.objectApiName}/${o.recordId}`} className="block rounded-ctl border border-rule px-2 py-1.5 hover:bg-canvas">
+                    <Link href={o.recordId ? `/w/${slug}/o/${o.objectApiName}/${o.recordId}` : `/w/${slug}/documents`} className="block rounded-ctl border border-rule px-2 py-1.5 hover:bg-canvas">
                       <span className="block truncate text-meta font-medium text-ink">{o.title}</span>
                       <span className="block truncate text-[12px] text-ink-muted">{o.recordLabel}</span>
                     </Link>

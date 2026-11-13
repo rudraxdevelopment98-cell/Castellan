@@ -74,7 +74,7 @@ function toMeta(r: Record<string, unknown>): DocumentMeta {
 }
 
 /** Scope predicate over `documents LEFT JOIN records` (null = no restriction). */
-function documentScopeCondition(scopeType: string, actorUserId: string) {
+export function documentScopeCondition(scopeType: string, actorUserId: string) {
   if (scopeType === "all") return null;
   return or(
     eq(records.ownerId, actorUserId),
