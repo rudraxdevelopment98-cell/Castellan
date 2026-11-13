@@ -28,21 +28,20 @@ export default async function MembersPage({
 
   const error = typeof sp.error === "string" ? sp.error : null;
   const invited = typeof sp.invited === "string" ? sp.invited : null;
-  const link = typeof sp.link === "string" ? sp.link : null;
+  const sent = sp.sent === "1";
 
   return (
     <div className="space-y-5">
       <h1 className="text-title font-semibold text-ink">Members</h1>
 
       {invited && (
-        <div className="rounded-ctl border border-ok/40 bg-ok/10 px-3 py-2 text-meta text-ok">
-          Invited {invited}.
-          {link && (
-            <>
-              {" "}No email is sent in local dev — share this link:{" "}
-              <a href={link} className="font-medium underline">{link}</a>
-            </>
-          )}
+        <div
+          role="status"
+          className={`rounded-ctl border px-3 py-2 text-meta ${sent ? "border-ok/40 bg-ok/10 text-ok" : "border-overdue/40 bg-overdue/10 text-overdue"}`}
+        >
+          {sent
+            ? `Invitation emailed to ${invited}. It works only for that address and expires in 7 days.`
+            : `The invitation for ${invited} was created, but the email could not be sent. Check the email settings, then invite again.`}
         </div>
       )}
       {error && (

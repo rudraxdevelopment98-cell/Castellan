@@ -50,6 +50,7 @@ export async function resolveSession(rawToken: string): Promise<ResolvedSession 
         email: users.email,
         name: users.name,
         mfaEnabled: users.mfaEnabled,
+        emailVerifiedAt: users.emailVerifiedAt,
       })
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
@@ -67,7 +68,13 @@ export async function resolveSession(rawToken: string): Promise<ResolvedSession 
     await tx.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, r.sessionId));
     return {
       sessionId: r.sessionId as string,
-      user: { id: r.userId as string, email: r.email as string, name: r.name, mfaEnabled: r.mfaEnabled as boolean },
+      user: {
+        id: r.userId as string,
+        email: r.email as string,
+        name: r.name,
+        mfaEnabled: r.mfaEnabled as boolean,
+        emailVerified: Boolean(r.emailVerifiedAt),
+      },
     };
   });
 }

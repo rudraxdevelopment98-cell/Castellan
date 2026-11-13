@@ -11,8 +11,9 @@ import {
 
 /**
  * User accounts (global, not tenant-scoped). Argon2id passwords, brute-force
- * lockout (spec authentication_must). Email verification is auto-completed in
- * local dev; in production a verification email gates workspace creation.
+ * lockout (spec authentication_must). Public sign-up goes through
+ * accounts.startSignUp, which emails a verification link; an account cannot
+ * sign in until its address is verified (AUDIT H5).
  */
 
 export interface PublicUser {
@@ -20,6 +21,7 @@ export interface PublicUser {
   email: string;
   name: string | null;
   mfaEnabled: boolean;
+  emailVerified: boolean;
 }
 
 function toPublic(u: {
@@ -27,22 +29,26 @@ function toPublic(u: {
   email: string;
   name: string | null;
   mfaEnabled: boolean;
+  emailVerifiedAt: Date | string | null;
 }): PublicUser {
-  return { id: u.id, email: u.email, name: u.name, mfaEnabled: u.mfaEnabled };
+  return { id: u.id, email: u.email, name: u.name, mfaEnabled: u.mfaEnabled, emailVerified: Boolean(u.emailVerifiedAt) };
 }
 
 const normEmail = (email: string) => email.trim().toLowerCase();
 
-export async function createUser(input: {
-  email: string;
-  password: string;
-  name: string;
-}): Promise<{ ok: true; user: PublicUser } | { ok: false; error: string }> {
+/**
+ * Create an account directly. Not the public sign-up path (that is
+ * accounts.startSignUp, which never reveals whether an email exists); used by
+ * tests and internal tooling. Accounts start unverified unless stated.
+ */
+export async function createUser(
+  input: { email: string; password: string; name: string },
+  opts: { emailVerified?: boolean } = {},
+): Promise<{ ok: true; user: PublicUser } | { ok: false; error: string }> {
   const db = await getDb();
   const email = normEmail(input.email);
   const passwordHash = await hashPassword(input.password);
-  // Auto-verify in dev; production flips this to a verification email.
-  const emailVerifiedAt = process.env.DATABASE_URL ? null : new Date();
+  const emailVerifiedAt = opts.emailVerified ? new Date() : null;
   try {
     return await asService(db, async (tx) => {
       const existing = await tx
@@ -79,6 +85,9 @@ export type LoginResult =
  * locked account — so the response never reveals whether an address is
  * registered (AUDIT H11). It still tells a real user about the lockout.
  */
+export const UNVERIFIED_MESSAGE =
+  "Please confirm your email address first — use the link we emailed you. Lost it? Use “Forgot password” to get a new one.";
+
 export const LOGIN_FAILED_MESSAGE =
   `Email or password is incorrect. After ${MAX_FAILED_LOGINS} failed attempts an account is locked for ${LOCKOUT_MINUTES} minutes.`;
 
@@ -123,6 +132,9 @@ export async function verifyLogin(input: {
     }
 
     await tx.update(users).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(users.id, u.id));
+    // Only someone who knows the password learns the account is unverified, so
+    // this does not reopen the enumeration channel.
+    if (!u.emailVerifiedAt) return { ok: false as const, error: UNVERIFIED_MESSAGE };
     return { ok: true as const, user: toPublic(u), mfaRequired: u.mfaEnabled };
   });
 }

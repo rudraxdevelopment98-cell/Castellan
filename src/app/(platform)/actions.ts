@@ -12,9 +12,13 @@ import { acceptInvite, createWorkspaceWithOwner, inviteMember } from "@/server/t
 import { applyTemplateToWorkspace } from "@/server/templates_apply";
 import { requireUser } from "@/server/session";
 import { PermissionError } from "@/server/rbac";
+import { sendEmail } from "@/server/email/transport";
+import * as emailTemplates from "@/server/email/templates";
+import { absoluteUrl } from "@/server/appUrl";
 
 export async function createWorkspaceAction(formData: FormData): Promise<void> {
   const user = await requireUser("/onboarding");
+  if (!user.emailVerified) redirect("/onboarding");
   const parsed = createWorkspaceSchema.safeParse({
     name: formData.get("name"),
     timezone: formData.get("timezone") || undefined,
@@ -66,23 +70,29 @@ export async function inviteMemberAction(formData: FormData): Promise<void> {
   }
 
   const db = await getDb();
+  let token: string;
   try {
-    const { token } = await inviteMember(db, {
+    ({ token } = await inviteMember(db, {
       workspaceId: membership!.workspaceId,
       actorUserId: user.id,
       email: parsed.data.email,
       role: parsed.data.role,
-    });
-    // In production this link is emailed. In local dev (no mail) surface it so
-    // the invite can be tested end-to-end.
-    const link = `/invite/${token}`;
-    redirect(`/w/${slug}/members?invited=${encodeURIComponent(parsed.data.email)}&link=${encodeURIComponent(link)}`);
+    }));
   } catch (e) {
     if (e instanceof PermissionError) {
       redirect(`/w/${slug}/members?error=${encodeURIComponent("You do not have permission to invite members.")}`);
     }
     throw e;
   }
+  // The token only ever travels in the email — never in a URL of ours, where it
+  // would land in browser history and request logs (AUDIT M12).
+  const sent = await sendEmail({
+    kind: "invite",
+    to: parsed.data.email,
+    workspaceId: membership!.workspaceId,
+    ...emailTemplates.invite(absoluteUrl(`/invite/${token}`), membership!.name, user.name, parsed.data.role),
+  });
+  redirect(`/w/${slug}/members?invited=${encodeURIComponent(parsed.data.email)}&sent=${sent.ok ? 1 : 0}`);
 }
 
 export async function regenerateObligationsAction(formData: FormData): Promise<void> {
@@ -178,6 +188,8 @@ export async function addFieldAction(formData: FormData): Promise<void> {
 export async function acceptInviteAction(formData: FormData): Promise<void> {
   const token = String(formData.get("token") ?? "");
   const user = await requireUser(`/invite/${token}`);
+  // Invitations are bound to an email address, so that address must be proven.
+  if (!user.emailVerified) redirect("/onboarding");
   const db = await getDb();
   let target: string;
   try {

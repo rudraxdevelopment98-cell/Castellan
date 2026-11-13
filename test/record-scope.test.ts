@@ -59,15 +59,15 @@ beforeAll(async () => {
   close = () => t.pg.close();
   _setDbForTests(db);
 
-  owner = (await createUser({ email: "owner@scope.test", password: "a-strong-password", name: "Owner" }) as { user: { id: string } }).user.id;
-  bob = (await createUser({ email: "bob@scope.test", password: "a-strong-password", name: "Bob" }) as { user: { id: string } }).user.id;
-  cara = (await createUser({ email: "cara@scope.test", password: "a-strong-password", name: "Cara" }) as { user: { id: string } }).user.id;
+  owner = (await createUser({ email: "owner@scope.test", password: "a-strong-password", name: "Owner" }, { emailVerified: true }) as { user: { id: string } }).user.id;
+  bob = (await createUser({ email: "bob@scope.test", password: "a-strong-password", name: "Bob" }, { emailVerified: true }) as { user: { id: string } }).user.id;
+  cara = (await createUser({ email: "cara@scope.test", password: "a-strong-password", name: "Cara" }, { emailVerified: true }) as { user: { id: string } }).user.id;
 
   ws = (await createWorkspaceWithOwner(db, { ownerUserId: owner, name: "Scope WS", slug: "scope" })).workspaceId;
   await applyTemplateToWorkspace(db, { workspaceId: ws, actorUserId: owner, templateId: "uk-landlord", withSamples: false });
   objectId = (await getObjectByApiName(db, { workspaceId: ws, actorUserId: owner, apiName: "property" }))!.id;
 
-  dan = (await createUser({ email: "dan@scope.test", password: "a-strong-password", name: "Dan" }) as { user: { id: string } }).user.id;
+  dan = (await createUser({ email: "dan@scope.test", password: "a-strong-password", name: "Dan" }, { emailVerified: true }) as { user: { id: string } }).user.id;
 
   await addMember(bob, "assigned");
   await addMember(cara, "team");

@@ -122,7 +122,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Proposed fix:** Reject inviting/assigning a role higher than the actor's (only an owner may mint an
   owner); enforce ≥1 owner invariant anywhere role/membership changes.
 
-### H5 — Email verification claimed but not implemented or enforced — OPEN
+### H5 — Email verification claimed but not implemented or enforced — FIXED (email commit); D2 decided: verify before use
 - **Files:** `src/server/users.ts:44`, `src/app/(auth)/actions.ts:43`.
 - **What is wrong:** In production (`DATABASE_URL` set) new users get `emailVerifiedAt = null`, but
   sign-up immediately starts a session and nothing ever checks verification; there is no verification
@@ -131,7 +131,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
   actions on it) or stop marking users unverified. Requires an email provider (see H9). `DECISION NEEDED`:
   verify-before-use vs verify-optional.
 
-### H6 — Password reset is entirely missing — OPEN
+### H6 — Password reset is entirely missing — FIXED (email commit)
 - **Files:** none (no route/action/token type for reset).
 - **What is wrong:** A user who forgets their password has no recovery path.
 - **Proposed fix:** Add reset-request + reset-confirm with single-use, expiring, hashed tokens; invalidate
@@ -226,7 +226,7 @@ unauthenticated and live in production, built on seed data. Confusing and an unn
 `/api/health` and `/api/bootstrap` return `String(e)` on failure, which can include DB host / DSN details.
 `src/app/api/health/route.ts`, `src/app/api/bootstrap/route.ts`.
 
-### M6 — `.env.example` inaccurate; no fail-fast on missing env — OPEN
+### M6 — `.env.example` inaccurate; no fail-fast on missing env — PARTLY FIXED (email commit): `.env.example` rewritten from the code; email links fail fast without APP_URL; general startup validation still open
 Documents unused vars (`S3_*`, `TWILIO_*`, `OPEN_BANKING_*`, `LLM_*`, `AUTH_SECRET`) and omits the vars
 actually used (`BOOTSTRAP_TOKEN`, `DB_LOCAL_ROLE`, `POSTGRES_URL*`). The app does not validate required
 env at startup. `/.env.example`.
@@ -260,6 +260,15 @@ tests; each migration applies once in its own transaction; pre-journal databases
 everything a migration creates is present; `rls.sql` and `app_user` grants are idempotent and re-applied
 every run. `test/migrations.test.ts`.
 
+### M12 — Invite tokens were placed in page URLs — FIXED (email commit)
+`inviteMemberAction` redirected to `/members?link=/invite/<token>`, putting a live invitation token into
+browser history, the Referer of any later navigation, and request logs. The invitation is now emailed and
+the token never appears in one of our URLs.
+
+### M13 — Sign-up revealed whether an email was registered — FIXED (email commit)
+Sign-up answered "That email is already registered." It now always shows the same "check your email"
+screen after the same minimum delay; the owner of an existing address is emailed a sign-in / reset link.
+
 ---
 
 ## LOW
@@ -280,8 +289,8 @@ every run. `test/migrations.test.ts`.
 - **D1 (C2/H12):** The record→team association model for `'team'`/`'filter'` scope is not defined in code.
   Until decided, these scopes fail closed. Need the intended association (record.team_id? membership teams
   ∩ record teams?).
-- **D2 (H5/H6/H9):** Email provider and whether verification is mandatory before workspace use. Needs a
-  provider API key.
+- **D2 (H5/H6/H9):** DECIDED — Resend (owner's choice). Verification is mandatory before sign-in (the safer
+  option). Live sign-up needs `RESEND_API_KEY` and a verified sender domain (`EMAIL_FROM`) in production.
 - **D3 (H10):** Scope and sequencing of the operator/platform-admin layer.
 
 ## What could not be verified

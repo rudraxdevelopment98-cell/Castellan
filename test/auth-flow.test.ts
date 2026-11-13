@@ -29,10 +29,10 @@ afterAll(async () => {
 
 describe("auth flow", () => {
   it("signs up, rejects duplicate email, and signs in", async () => {
-    const created = await createUser({ email: "Owner@Example.com", password: "correct horse staple", name: "Owner" });
+    const created = await createUser({ email: "Owner@Example.com", password: "correct horse staple", name: "Owner" }, { emailVerified: true });
     expect(created.ok).toBe(true);
 
-    const dup = await createUser({ email: "owner@example.com", password: "another one here", name: "Dup" });
+    const dup = await createUser({ email: "owner@example.com", password: "another one here", name: "Dup" }, { emailVerified: true });
     expect(dup.ok).toBe(false);
 
     const bad = await verifyLogin({ email: "owner@example.com", password: "wrong" });
@@ -43,7 +43,7 @@ describe("auth flow", () => {
   });
 
   it("locks the account after repeated failures", async () => {
-    await createUser({ email: "lock@example.com", password: "right password here", name: "Lock" });
+    await createUser({ email: "lock@example.com", password: "right password here", name: "Lock" }, { emailVerified: true });
     for (let i = 0; i < 5; i++) {
       await verifyLogin({ email: "lock@example.com", password: "nope" });
     }
@@ -53,7 +53,7 @@ describe("auth flow", () => {
   });
 
   it("creates and resolves a session, then revokes it", async () => {
-    const u = await createUser({ email: "sess@example.com", password: "session password ok", name: "Sess" });
+    const u = await createUser({ email: "sess@example.com", password: "session password ok", name: "Sess" }, { emailVerified: true });
     if (!u.ok) throw new Error("setup");
     const { token } = await createSession(u.user.id);
     const resolved = await resolveSession(token);
@@ -66,8 +66,8 @@ describe("auth flow", () => {
 
 describe("workspace onboarding + membership", () => {
   it("owner creates a workspace, invites, invitee accepts with role", async () => {
-    const owner = await createUser({ email: "o2@example.com", password: "owner pass here ok", name: "O2" });
-    const invitee = await createUser({ email: "m2@example.com", password: "member pass here ok", name: "M2" });
+    const owner = await createUser({ email: "o2@example.com", password: "owner pass here ok", name: "O2" }, { emailVerified: true });
+    const invitee = await createUser({ email: "m2@example.com", password: "member pass here ok", name: "M2" }, { emailVerified: true });
     if (!owner.ok || !invitee.ok) throw new Error("setup");
 
     const slug = await uniqueWorkspaceSlug("acme");
@@ -93,13 +93,13 @@ describe("workspace onboarding + membership", () => {
     const membership = await resolveWorkspaceForUser(invitee.user.id, slug);
     expect(membership?.role).toBe("manager");
     // A non-member resolves to null.
-    const owner3 = await createUser({ email: "x2@example.com", password: "xxxx pass here ok", name: "X2" });
+    const owner3 = await createUser({ email: "x2@example.com", password: "xxxx pass here ok", name: "X2" }, { emailVerified: true });
     if (!owner3.ok) throw new Error("setup");
     expect(await resolveWorkspaceForUser(owner3.user.id, slug)).toBeNull();
   });
 
   it("unique slug helper avoids collisions", async () => {
-    const u = await createUser({ email: "slug@example.com", password: "slug pass here ok", name: "S" });
+    const u = await createUser({ email: "slug@example.com", password: "slug pass here ok", name: "S" }, { emailVerified: true });
     if (!u.ok) throw new Error("setup");
     const s1 = await uniqueWorkspaceSlug("dupe");
     await createWorkspaceWithOwner(db, { ownerUserId: u.user.id, name: "Dupe", slug: s1 });

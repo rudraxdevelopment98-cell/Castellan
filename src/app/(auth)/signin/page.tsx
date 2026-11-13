@@ -48,7 +48,12 @@ export default async function SignInPage({
         </label>
         <SubmitButton pendingLabel="Signing in…">Sign in</SubmitButton>
       </form>
-      <p className="mt-4 text-meta text-ink-muted">
+      <p className="mt-3 text-meta">
+        <Link href="/forgot" className="font-medium text-brand hover:underline">
+          Forgot your password?
+        </Link>
+      </p>
+      <p className="mt-2 text-meta text-ink-muted">
         New here?{" "}
         <Link href="/signup" className="font-medium text-brand hover:underline">
           Create an account

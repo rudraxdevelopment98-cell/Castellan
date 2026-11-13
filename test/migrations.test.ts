@@ -70,7 +70,10 @@ describe("journaled migrations", () => {
     // Forge a half-applied state: remove the journal entry for the last file
     // but keep its tables, then drop one of them. A re-run must not baseline it
     // (only partly present) and must fail loudly, leaving the journal unchanged.
-    const last = migrationFiles().at(-1)!;
+    // The migration that creates email_deliveries (not simply the newest file).
+    const last = migrationFiles().find((f) =>
+      readFileSync(path.join(process.cwd(), "drizzle", f), "utf8").includes('CREATE TABLE "email_deliveries"'),
+    )!;
     await pg.exec(`DELETE FROM castellan_migrations WHERE name = '${last}'`);
     await pg.exec(`DROP TABLE email_deliveries`);
     await expect(migrate(pgliteDriver(pg))).rejects.toThrow(/Migration .* failed/);

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { templates, PERSONAL_TEMPLATE_IDS } from "@/lib/data/templates";
 import { createWorkspaceAction } from "../../(platform)/actions";
 import { SubmitButton } from "@/components/SubmitButton";
+import { resendVerificationAction } from "../actions";
 
 export default async function OnboardingPage({
   searchParams,
@@ -17,6 +18,28 @@ export default async function OnboardingPage({
   // If they already have a workspace, send them to it.
   const existing = await getMembershipsForUser(user.id);
   if (existing[0] && sp.new !== "1") redirect(`/w/${existing[0].slug}`);
+
+  // Workspaces are only created from a verified address (AUDIT H5).
+  if (!user.emailVerified) {
+    const verify = typeof sp.verify === "string" ? sp.verify : null;
+    const note =
+      verify === "sent" ? `We've sent a new link to ${user.email}.`
+      : verify === "rate_limited" ? "You've asked for several links recently — please use the newest one, or try again in an hour."
+      : verify === "failed" ? "We couldn't send the email just now. Please try again shortly."
+      : null;
+    return (
+      <div className="rounded-panel border border-rule bg-surface p-6">
+        <h1 className="text-section font-semibold text-ink">Confirm your email first</h1>
+        <p className="mt-2 text-body text-ink-muted">
+          Before you create a workspace, confirm that <strong className="text-ink">{user.email}</strong> is yours.
+        </p>
+        {note && <p role="status" className="mt-3 rounded-ctl border border-rule bg-canvas px-3 py-2 text-meta text-ink">{note}</p>}
+        <form action={resendVerificationAction} className="mt-4">
+          <SubmitButton pendingLabel="Sending…">Send me a confirmation link</SubmitButton>
+        </form>
+      </div>
+    );
+  }
 
   const personal = templates.filter((t) => PERSONAL_TEMPLATE_IDS.has(t.id));
   const business = templates.filter((t) => !PERSONAL_TEMPLATE_IDS.has(t.id));

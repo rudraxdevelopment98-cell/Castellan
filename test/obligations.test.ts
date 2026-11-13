@@ -26,7 +26,7 @@ beforeAll(async () => {
   db = t.db;
   close = () => t.pg.close();
   _setDbForTests(db);
-  const u = await createUser({ email: "ob@example.com", password: "obliga pass here ok", name: "Ob" });
+  const u = await createUser({ email: "ob@example.com", password: "obliga pass here ok", name: "Ob" }, { emailVerified: true });
   if (!u.ok) throw new Error("setup");
   owner = u.user.id;
   ws = (await createWorkspaceWithOwner(db, { ownerUserId: owner, name: "Ob WS", slug: "ob" })).workspaceId;

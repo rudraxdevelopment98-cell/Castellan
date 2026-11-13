@@ -39,7 +39,7 @@ let docLooseByOwner: string;
 const pdf = Buffer.from("%PDF-1.4 test");
 
 async function user(email: string): Promise<string> {
-  const u = await createUser({ email, password: "a-strong-password", name: email });
+  const u = await createUser({ email, password: "a-strong-password", name: email }, { emailVerified: true });
   if (!u.ok) throw new Error("user setup");
   return u.user.id;
 }

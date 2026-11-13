@@ -24,8 +24,8 @@ beforeAll(async () => {
   const t = await makeTestDb();
   close = () => t.pg.close();
   _setDbForTests(t.db);
-  await createUser({ email: "real@oracle.test", password: "the-right-password", name: "Real" });
-  await createUser({ email: "locked@oracle.test", password: "the-right-password", name: "Locked" });
+  await createUser({ email: "real@oracle.test", password: "the-right-password", name: "Real" }, { emailVerified: true });
+  await createUser({ email: "locked@oracle.test", password: "the-right-password", name: "Locked" }, { emailVerified: true });
   for (let i = 0; i < MAX_FAILED_LOGINS; i++) {
     await verifyLogin({ email: "locked@oracle.test", password: "wrong" });
   }

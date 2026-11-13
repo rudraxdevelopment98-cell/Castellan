@@ -39,7 +39,7 @@ beforeAll(async () => {
   db = t.db;
   close = () => t.pg.close();
   _setDbForTests(db);
-  const o = await createUser({ email: "owner@export.test", password: "a-strong-password", name: "Owner" });
+  const o = await createUser({ email: "owner@export.test", password: "a-strong-password", name: "Owner" }, { emailVerified: true });
   if (!o.ok) throw new Error("owner setup");
   owner = o.user.id;
   ws = (await createWorkspaceWithOwner(db, { ownerUserId: owner, name: "Export WS", slug: "export" })).workspaceId;
