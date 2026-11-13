@@ -1,7 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { getDb } from "@/server/db/client";
+import { consumeToken, issueToken, tokenOwner } from "@/server/authTokens";
+import { verifySecondFactor } from "@/server/mfa";
 import { emailSchema, parseSignInForm, parseSignUpForm, passwordSchema } from "@/server/validation";
 import { verifyLogin } from "@/server/users";
 import { getMembershipsForUser } from "@/server/context";
@@ -66,11 +69,47 @@ export async function signInAction(formData: FormData): Promise<void> {
     redirect(`/signin?${q.toString()}`);
   }
   if (res.mfaRequired) {
-    // TOTP sign-in UI lands in the next step; no account enables MFA yet.
-    redirect(`/signin?error=${encodeURIComponent("MFA is enabled on this account; the MFA sign-in step is coming next.")}`);
+    // Password is right; no session until the second factor is too (AUDIT H7).
+    const t = await issueToken(await getDb(), { userId: res.user.id, purpose: "mfa_pending", email: res.user.email });
+    if (!t.ok) redirect(`/signin?error=${encodeURIComponent("Too many sign-in attempts. Try again later.")}`);
+    (await cookies()).set(MFA_COOKIE, t.token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 10 * 60,
+    });
+    redirect(`/signin/mfa${next ? `?next=${encodeURIComponent(next)}` : ""}`);
   }
   await startSession(res.user.id, await meta());
   redirect(await destinationFor(res.user.id, next));
+}
+
+const MFA_COOKIE = "cstl_mfa";
+
+/** Second sign-in step: an authenticator code or a recovery code. */
+export async function mfaSignInAction(formData: FormData): Promise<void> {
+  const next = safeNext(formData.get("next"));
+  const back = (msg: string) =>
+    redirect(`/signin/mfa?error=${encodeURIComponent(msg)}${next ? `&next=${encodeURIComponent(next)}` : ""}`);
+  const jar = await cookies();
+  const pending = jar.get(MFA_COOKIE)?.value ?? "";
+  const db = await getDb();
+  const userId = await tokenOwner(db, pending, "mfa_pending");
+  if (!userId) {
+    jar.delete(MFA_COOKIE);
+    redirect(`/signin?error=${encodeURIComponent("Your sign-in timed out. Please enter your password again.")}`);
+  }
+  const code = typeof formData.get("code") === "string" ? String(formData.get("code")) : "";
+  const check = await verifySecondFactor(userId, code);
+  if (!check.ok) back(check.error ?? "That code didn't work.");
+  // Spend the pending token; if it was already used, start again.
+  if (!(await consumeToken(db, pending, "mfa_pending"))) {
+    redirect(`/signin?error=${encodeURIComponent("Your sign-in timed out. Please enter your password again.")}`);
+  }
+  jar.delete(MFA_COOKIE);
+  await startSession(userId, { ...(await meta()), mfaSatisfied: true });
+  redirect(await destinationFor(userId, next));
 }
 
 export async function signOutAction(): Promise<void> {

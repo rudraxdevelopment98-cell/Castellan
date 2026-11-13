@@ -78,6 +78,8 @@ export const users = pgTable(
     // TOTP secret (encrypted at the app layer before storage in prod).
     totpSecret: text("totp_secret"),
     mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+    // Last TOTP time-step accepted; a code at or before it is a replay (AUDIT H7).
+    totpLastStep: integer("totp_last_step"),
     recoveryCodes: jsonb("recovery_codes").$type<string[]>(),
     failedLoginCount: integer("failed_login_count").notNull().default(0),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),

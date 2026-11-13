@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { workspaces } from "@/server/db/schema";
 import { requireUser } from "@/server/session";
 import { getMembershipsForUser, resolveWorkspaceForUser } from "@/server/context";
-import { getDb } from "@/server/db/client";
+import { asService, getDb } from "@/server/db/client";
 import { listObjects } from "@/server/metadata";
 import { signOutAction } from "../../../(auth)/actions";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -20,6 +23,12 @@ export default async function WorkspaceLayout({
   if (!membership) redirect("/onboarding");
   const all = await getMembershipsForUser(user.id);
   const db = await getDb();
+  // A workspace can require two-factor sign-in of every member (AUDIT H7).
+  const mfaRequired = await asService(db, async (tx) => {
+    const [w] = await tx.select({ p: workspaces.securityPolicy }).from(workspaces).where(eq(workspaces.id, membership.workspaceId)).limit(1);
+    return Boolean((w?.p as { mfaRequired?: boolean } | null)?.mfaRequired);
+  });
+  if (mfaRequired && !user.mfaEnabled) redirect("/account/security?required=1");
   const objects = await listObjects(db, { workspaceId: membership.workspaceId, actorUserId: user.id });
 
   const items: NavItem[] = [
@@ -38,9 +47,14 @@ export default async function WorkspaceLayout({
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok" /> Data in UK / EU region
       </div>
       <div className="mt-1 truncate">{user.email} · {membership.role}</div>
-      <form action={signOutAction} className="mt-2">
-        <button className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas">Sign out</button>
-      </form>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Link href="/account/security" className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas">
+          Security
+        </Link>
+        <form action={signOutAction}>
+          <button className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas">Sign out</button>
+        </form>
+      </div>
     </div>
   );
 

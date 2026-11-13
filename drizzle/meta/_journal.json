@@ -57,6 +57,13 @@
       "when": 1794564120739,
       "tag": "0007_parallel_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794564721801,
+      "tag": "0008_lyrical_gideon",
+      "breakpoints": true
     }
   ]
 }

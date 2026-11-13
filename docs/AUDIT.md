@@ -150,7 +150,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Proposed fix:** Add reset-request + reset-confirm with single-use, expiring, hashed tokens; invalidate
   other sessions on reset; uniform response regardless of whether the email exists. Needs email (H9).
 
-### H7 — MFA is non-functional — OPEN
+### H7 — MFA is non-functional — FIXED (H7 commit); secret encryption at rest tracked as M14
 - **Files:** `src/app/(auth)/actions.ts:63`, `src/server/sessionStore.ts:41` (`resolveSession`).
 - **What is wrong:** If `mfaEnabled`, sign-in dead-ends with "coming next" — a user who enables MFA can
   never sign in. There is no enrolment UI, and `resolveSession` ignores `sessions.mfaSatisfied`, so even
@@ -291,6 +291,12 @@ the token never appears in one of our URLs.
 ### M13 — Sign-up revealed whether an email was registered — FIXED (email commit)
 Sign-up answered "That email is already registered." It now always shows the same "check your email"
 screen after the same minimum delay; the owner of an existing address is emailed a sign-in / reset link.
+
+### M14 — TOTP secrets are stored unencrypted — OPEN
+`users.totp_secret` holds the authenticator secret in plain text (the schema comment says it is encrypted
+at the app layer; it is not). The database is tenant-isolated and encrypted at rest by the provider, but a
+database read (backup, support query) would let the reader generate codes. Fix: AES-256-GCM with a key
+from a new `ENCRYPTION_KEY` environment variable, migrating existing secrets. Needs a key the owner adds.
 
 ---
 

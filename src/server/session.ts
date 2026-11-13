@@ -11,7 +11,10 @@ import type { PublicUser } from "./users";
 
 const COOKIE = "cstl_session";
 
-export async function startSession(userId: string, meta: { userAgent?: string; ip?: string } = {}) {
+export async function startSession(
+  userId: string,
+  meta: { userAgent?: string; ip?: string; mfaSatisfied?: boolean } = {},
+) {
   const { token } = await createSession(userId, meta);
   const jar = await cookies();
   jar.set(COOKIE, token, {
