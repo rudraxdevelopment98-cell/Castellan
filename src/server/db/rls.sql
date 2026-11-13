@@ -15,7 +15,14 @@
 -- so isolation holds in tests (PGlite drops to a NOSUPERUSER role) exactly as on
 -- Supabase, where the app connects as a non-superuser.
 
+-- Idempotent: every policy is dropped before it is (re)created, so this file is
+-- re-applied on every bootstrap and picks up tables added by later migrations.
+
 -- workspaces: a tenant only sees its own workspace row; inserts go via bypass.
+DROP POLICY IF EXISTS ws_select ON workspaces;
+DROP POLICY IF EXISTS ws_insert ON workspaces;
+DROP POLICY IF EXISTS ws_update ON workspaces;
+DROP POLICY IF EXISTS ws_delete ON workspaces;
 ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspaces FORCE ROW LEVEL SECURITY;
 CREATE POLICY ws_select ON workspaces FOR SELECT USING (
@@ -45,6 +52,7 @@ BEGIN
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', tbl);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY;', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS %1$s_tenant ON %1$I;', tbl);
     EXECUTE format($f$
       CREATE POLICY %1$s_tenant ON %1$I
       USING (

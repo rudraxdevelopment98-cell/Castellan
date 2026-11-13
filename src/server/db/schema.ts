@@ -113,6 +113,61 @@ export const sessions = pgTable(
   }),
 );
 
+/**
+ * Single-use, expiring tokens sent by email: email verification and password
+ * reset. Like sessions, only the SHA-256 of the token is stored; the raw value
+ * exists only in the link that was emailed.
+ */
+export const authTokens = pgTable(
+  "auth_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(), // verify_email | password_reset
+    tokenHash: text("token_hash").notNull(),
+    // For verification: the address the link proves ownership of.
+    email: text("email").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tokenUnique: uniqueIndex("auth_tokens_token_hash_unique").on(t.tokenHash),
+    byUserPurpose: index("auth_tokens_user_purpose_idx").on(t.userId, t.purpose, t.createdAt),
+  }),
+);
+
+/**
+ * Every email the platform attempts to send, with its outcome (spec: delivery
+ * log). Global rather than tenant-scoped because account email (verification,
+ * reset) has no workspace; brief emails record their workspace for filtering.
+ * Never stores the body — links in it carry single-use tokens.
+ */
+export const emailDeliveries = pgTable(
+  "email_deliveries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    kind: text("kind").notNull(), // verify_email | password_reset | invite | daily_brief | weekly_brief
+    toEmail: text("to_email").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    workspaceId: uuid("workspace_id"),
+    // Idempotency key: the same brief for the same user and day is sent once.
+    dedupeKey: text("dedupe_key"),
+    status: text("status").notNull(), // sent | failed | skipped
+    providerId: text("provider_id"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    dedupeUnique: uniqueIndex("email_deliveries_dedupe_unique").on(t.dedupeKey),
+    byUser: index("email_deliveries_user_idx").on(t.userId, t.createdAt),
+  }),
+);
+
 // --- Tenant-scoped (RLS enforced) ------------------------------------------
 
 export const workspaces = pgTable(

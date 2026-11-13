@@ -10,6 +10,8 @@ export async function GET() {
     await asService(db, (tx) => tx.execute(sql`select 1 as ok`));
     return Response.json({ ok: true, db: "connected" });
   } catch (e) {
-    return Response.json({ ok: false, error: String(e) }, { status: 500 });
+    // Report status only; never the driver error, which can name hosts (AUDIT M5).
+    console.error("health check failed:", e instanceof Error ? e.message : e);
+    return Response.json({ ok: false, db: "unavailable" }, { status: 503 });
   }
 }

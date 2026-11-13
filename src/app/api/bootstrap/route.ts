@@ -41,6 +41,9 @@ export async function POST(req: Request): Promise<Response> {
     const result = await bootstrapProd(url);
     return Response.json({ ok: true, ...result });
   } catch (e) {
-    return Response.json({ ok: false, error: String(e) }, { status: 500 });
+    // The detail goes to the server log only; the response never carries
+    // driver or connection details (AUDIT M5).
+    console.error("bootstrap failed:", e instanceof Error ? e.message : e);
+    return Response.json({ ok: false, error: "Bootstrap failed; see the server log." }, { status: 500 });
   }
 }

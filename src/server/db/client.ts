@@ -95,10 +95,8 @@ async function initDevPglite(): Promise<AnyPgDb> {
   const dir = process.env.CASTELLAN_DEV_DB_DIR || ".castellan-dev-db";
   const pg = new PGlite(dir);
   await pg.waitReady;
-  if (!(await bootstrap.isBootstrapped(pg))) {
-    await bootstrap.applyMigrationsAndRls(pg);
-  }
-  await bootstrap.ensureAppRole(pg);
+  // Idempotent and journaled: applies only migrations this database lacks.
+  await bootstrap.applyMigrationsAndRls(pg);
   // PGlite's login role is a superuser, so drop to app_user per transaction.
   process.env.DB_LOCAL_ROLE = "app_user";
   return drizzle(pg) as unknown as AnyPgDb;

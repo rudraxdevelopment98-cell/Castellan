@@ -222,7 +222,7 @@ The `(demo)` route group (`/records`, `/week`, `/compliance`, `/assistant`, `/as
 unauthenticated and live in production, built on seed data. Confusing and an unnecessary surface.
 `src/app/(demo)/**`.
 
-### M5 — Error strings leaked by health/bootstrap — OPEN
+### M5 — Error strings leaked by health/bootstrap — FIXED (migrations commit)
 `/api/health` and `/api/bootstrap` return `String(e)` on failure, which can include DB host / DSN details.
 `src/app/api/health/route.ts`, `src/app/api/bootstrap/route.ts`.
 
@@ -249,6 +249,16 @@ from client input without an allow-list check against the object's fields (defen
 There is no ESLint configuration and no `eslint` dependency, so `next lint` drops into an interactive
 set-up prompt. The lint gate required by the audit brief is therefore not a gate at all. `package.json`.
 Fix: add `eslint` + `eslint-config-next` with a flat config and a non-interactive `lint` script.
+
+### M11 — Production migrations were not journaled or safely re-runnable — FIXED (migrations commit)
+`bootstrap_prod.ts` applied all migrations only when the `workspaces` table was missing, and later schema
+changes were hand-copied into an "ensure additions" block (the `documents` table existed twice, in the
+migration and in that block). Nothing recorded which migrations had run, `rls.sql` failed if re-applied,
+and a new tenant table would not be put under RLS on an existing database.
+Fix: `src/server/db/migrate.ts` — one journaled runner (`castellan_migrations`) for production, dev and
+tests; each migration applies once in its own transaction; pre-journal databases are baselined only when
+everything a migration creates is present; `rls.sql` and `app_user` grants are idempotent and re-applied
+every run. `test/migrations.test.ts`.
 
 ---
 
