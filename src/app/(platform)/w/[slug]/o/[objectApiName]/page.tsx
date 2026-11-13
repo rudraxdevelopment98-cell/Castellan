@@ -7,6 +7,7 @@ import { getObjectByApiName } from "@/server/metadata";
 import { queryRecords } from "@/server/records_query";
 import { can } from "@/server/rbac";
 import { formatFieldValue } from "@/lib/fieldDisplay";
+import { SubmitButton } from "@/components/SubmitButton";
 
 const COLS = 6; // visible columns kept readable; column manager is a follow-up
 
@@ -67,7 +68,7 @@ export default async function ObjectGrid({
 
       <form method="get" className="flex gap-2">
         <input name="q" defaultValue={search} placeholder="Search…" className="w-72 rounded-ctl border border-rule bg-surface px-3 py-2 text-table text-ink" />
-        <button className="rounded-ctl border border-rule px-3 py-2 text-table text-ink hover:bg-canvas">Search</button>
+        <SubmitButton className="rounded-ctl border border-rule px-3 py-2 text-table text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60">Search</SubmitButton>
         {search && <Link href={base} className="rounded-ctl px-3 py-2 text-table text-ink-muted hover:bg-canvas">Clear</Link>}
       </form>
 

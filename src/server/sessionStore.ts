@@ -33,6 +33,9 @@ export async function createSession(
   });
 }
 
+/** How stale sessions.last_seen_at may get before a request refreshes it. */
+export const LAST_SEEN_WRITE_MS = 5 * 60 * 1000;
+
 export interface ResolvedSession {
   sessionId: string;
   user: PublicUser;
@@ -51,6 +54,7 @@ export async function resolveSession(rawToken: string): Promise<ResolvedSession 
         name: users.name,
         mfaEnabled: users.mfaEnabled,
         emailVerifiedAt: users.emailVerifiedAt,
+        lastSeenAt: sessions.lastSeenAt,
       })
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
@@ -64,8 +68,12 @@ export async function resolveSession(rawToken: string): Promise<ResolvedSession 
       .limit(1);
     const r = rows[0];
     if (!r) return null;
-    // Touch last-seen (best-effort).
-    await tx.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, r.sessionId));
+    // Touch last-seen, but at most every few minutes: a write on every click is
+    // an extra database round trip for a timestamp nobody needs to the second.
+    const seen = r.lastSeenAt ? new Date(r.lastSeenAt as Date | string).getTime() : 0;
+    if (Date.now() - seen > LAST_SEEN_WRITE_MS) {
+      await tx.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, r.sessionId));
+    }
     return {
       sessionId: r.sessionId as string,
       user: {

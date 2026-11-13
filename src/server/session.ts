@@ -1,3 +1,4 @@
+import { requestCache as cache } from "./requestCache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSession, resolveSession, revokeSession } from "./sessionStore";
@@ -33,13 +34,17 @@ export async function endSession() {
   jar.delete(COOKIE);
 }
 
-export async function currentUser(): Promise<PublicUser | null> {
+/**
+ * The signed-in user, or null. Memoised per request with React cache(): the
+ * layout and the page both ask, but the session is looked up once.
+ */
+export const currentUser = cache(async (): Promise<PublicUser | null> => {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
   const resolved = await resolveSession(token);
   return resolved?.user ?? null;
-}
+});
 
 /** Require a signed-in user or redirect to sign-in (optionally returning here). */
 export async function requireUser(returnTo?: string): Promise<PublicUser> {

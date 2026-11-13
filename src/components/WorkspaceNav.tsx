@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
 export interface NavItem {
@@ -26,9 +26,18 @@ export function WorkspaceNav({ items, slug }: { items: NavItem[]; slug: string }
             }`}
           >
             {item.label}
+            <PendingDot />
           </Link>
         );
       })}
     </nav>
   );
+}
+
+/** A small pulsing dot on the link that was just clicked, until its page shows. */
+function PendingDot() {
+  const { pending } = useLinkStatus();
+  return pending ? (
+    <span aria-hidden className="ml-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-brand align-middle" />
+  ) : null;
 }

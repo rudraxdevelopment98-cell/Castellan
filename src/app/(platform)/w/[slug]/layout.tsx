@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { workspaces } from "@/server/db/schema";
 import { requireUser } from "@/server/session";
 import { getMembershipsForUser, resolveWorkspaceForUser } from "@/server/context";
-import { asService, getDb } from "@/server/db/client";
+import { getDb } from "@/server/db/client";
 import { listObjects } from "@/server/metadata";
 import { signOutAction } from "../../../(auth)/actions";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { WorkspaceNav, type NavItem } from "@/components/WorkspaceNav";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function WorkspaceLayout({
   children,
@@ -21,15 +20,14 @@ export default async function WorkspaceLayout({
   const user = await requireUser(`/w/${slug}`);
   const membership = await resolveWorkspaceForUser(user.id, slug);
   if (!membership) redirect("/onboarding");
-  const all = await getMembershipsForUser(user.id);
-  const db = await getDb();
   // A workspace can require two-factor sign-in of every member (AUDIT H7).
-  const mfaRequired = await asService(db, async (tx) => {
-    const [w] = await tx.select({ p: workspaces.securityPolicy }).from(workspaces).where(eq(workspaces.id, membership.workspaceId)).limit(1);
-    return Boolean((w?.p as { mfaRequired?: boolean } | null)?.mfaRequired);
-  });
-  if (mfaRequired && !user.mfaEnabled) redirect("/account/security?required=1");
-  const objects = await listObjects(db, { workspaceId: membership.workspaceId, actorUserId: user.id });
+  if (membership.mfaRequired && !user.mfaEnabled) redirect("/account/security?required=1");
+  const db = await getDb();
+  // Independent lookups run side by side rather than one after another.
+  const [all, objects] = await Promise.all([
+    getMembershipsForUser(user.id),
+    listObjects(db, { workspaceId: membership.workspaceId, actorUserId: user.id }),
+  ]);
 
   const items: NavItem[] = [
     { href: `/w/${slug}/today`, label: "Today" },
@@ -52,7 +50,7 @@ export default async function WorkspaceLayout({
           Security
         </Link>
         <form action={signOutAction}>
-          <button className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas">Sign out</button>
+          <SubmitButton className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60">Sign out</SubmitButton>
         </form>
       </div>
     </div>
@@ -80,7 +78,7 @@ export default async function WorkspaceLayout({
           <span className="font-serif text-[20px] font-semibold tracking-wide text-ink">Castellan</span>
           <WorkspaceSwitcher current={slug} options={all.map((w) => ({ slug: w.slug, name: w.name }))} />
           <form action={signOutAction} className="ml-auto">
-            <button className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas">Sign out</button>
+            <SubmitButton className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60">Sign out</SubmitButton>
           </form>
           <div className="w-full overflow-x-auto">
             <div className="flex gap-1 whitespace-nowrap">

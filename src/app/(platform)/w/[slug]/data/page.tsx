@@ -6,6 +6,7 @@ import { getDb } from "@/server/db/client";
 import { getObjectById, listObjects } from "@/server/metadata";
 import { can } from "@/server/rbac";
 import { createObjectAction, addFieldAction } from "../../../actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 const FIELD_TYPES = [
   "text", "long_text", "number", "currency", "percent", "date", "datetime",
@@ -79,7 +80,7 @@ export default async function DataModelPage({
               <label className="block"><span className="text-meta text-ink-muted">Options (select, comma-sep)</span><input name="options" className="mt-1 w-40 rounded-ctl border border-rule bg-surface px-2 py-1.5 text-table" /></label>
               <label className="flex items-center gap-1 text-meta text-ink-muted"><input type="checkbox" name="required" /> required</label>
               <label className="flex items-center gap-1 text-meta text-ink-muted"><input type="checkbox" name="unique" /> unique</label>
-              <button className="rounded-ctl bg-brand px-3 py-1.5 text-table font-medium text-white hover:opacity-90">Add field</button>
+              <SubmitButton className="rounded-ctl bg-brand px-3 py-1.5 text-table font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">Add field</SubmitButton>
             </form>
           )}
         </section>
@@ -93,7 +94,7 @@ export default async function DataModelPage({
             <label className="block"><span className="text-meta text-ink-muted">Singular</span><input name="singular" required placeholder="Vehicle" className="mt-1 w-36 rounded-ctl border border-rule bg-surface px-2 py-1.5 text-table" /></label>
             <label className="block"><span className="text-meta text-ink-muted">Plural</span><input name="plural" placeholder="Vehicles" className="mt-1 w-36 rounded-ctl border border-rule bg-surface px-2 py-1.5 text-table" /></label>
             <label className="block"><span className="text-meta text-ink-muted">api_name</span><input name="apiName" required pattern="[a-z][a-z0-9_]*" placeholder="vehicle" className="mt-1 w-32 rounded-ctl border border-rule bg-surface px-2 py-1.5 text-table" /></label>
-            <button className="rounded-ctl bg-brand px-3 py-1.5 text-table font-medium text-white hover:opacity-90">Create object</button>
+            <SubmitButton className="rounded-ctl bg-brand px-3 py-1.5 text-table font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">Create object</SubmitButton>
           </form>
           <p className="mt-2 text-meta text-ink-muted">A title field <code>name</code> is added automatically.</p>
         </section>

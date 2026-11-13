@@ -5,6 +5,7 @@ import { getDb } from "@/server/db/client";
 import { listMembers, listPendingInvitations } from "@/server/tenancy";
 import { can } from "@/server/rbac";
 import { inviteMemberAction } from "../../../actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function MembersPage({
   params,
@@ -102,7 +103,7 @@ export default async function MembersPage({
                 <option value="guest">Guest</option>
               </select>
             </label>
-            <button className="rounded-ctl bg-brand px-3 py-2 text-table font-medium text-white hover:opacity-90">Send invite</button>
+            <SubmitButton className="rounded-ctl bg-brand px-3 py-2 text-table font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">Send invite</SubmitButton>
           </form>
         </section>
       ) : (

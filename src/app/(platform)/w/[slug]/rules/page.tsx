@@ -5,6 +5,7 @@ import { getDb } from "@/server/db/client";
 import { listRules } from "@/server/rules_admin";
 import { can } from "@/server/rbac";
 import { setRuleEnabledAction } from "../../../actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 function cadenceLabel(c: Record<string, unknown>): string {
   switch (c.kind) {
@@ -71,9 +72,9 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
                       <input type="hidden" name="slug" value={slug} />
                       <input type="hidden" name="ruleId" value={r.id} />
                       <input type="hidden" name="enabled" value={(!r.enabled).toString()} />
-                      <button className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas">
+                      <SubmitButton className="rounded-ctl border border-rule px-2.5 py-1 text-meta text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60">
                         {r.enabled ? "Disable" : "Enable"}
-                      </button>
+                      </SubmitButton>
                     </form>
                   </td>
                 )}

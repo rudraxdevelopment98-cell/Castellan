@@ -7,6 +7,7 @@ import { buildTodayPlan, type ObligationView } from "@/server/today";
 import { formatUkDate, diffDays, todayInZone } from "@/lib/rules/dates";
 import { regenerateObligationsAction, setBriefEmailAction } from "../../../actions";
 import { getBriefEmail } from "@/server/brief";
+import { SubmitButton } from "@/components/SubmitButton";
 
 function relative(due: string | null, today: string): string {
   if (!due) return "watch";
@@ -71,7 +72,7 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
         </div>
         <form action={regenerateObligationsAction}>
           <input type="hidden" name="slug" value={slug} />
-          <button className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">Update list</button>
+          <SubmitButton className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60">Update list</SubmitButton>
         </form>
       </div>
 
@@ -93,9 +94,9 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
                 ? `Emailed to ${user.email} each morning when something is due.`
                 : "The morning email is off for you in this workspace."}
             </span>
-            <button className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">
+            <SubmitButton className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60">
               {briefOn ? "Turn off the email" : "Turn on the email"}
-            </button>
+            </SubmitButton>
           </form>
         </div>
       </section>

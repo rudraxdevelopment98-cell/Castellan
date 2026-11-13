@@ -24,22 +24,30 @@ export interface ScopedCtx {
 // PGlite adapters; domain modules import table types for their own queries.
 type Tx = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-async function setLocal(tx: Tx, key: string, value: string): Promise<void> {
-  // set_config(key, value, is_local=true) => scoped to this transaction only.
-  await tx.execute(sql`select set_config(${key}, ${value}, true)`);
-}
-
 /**
  * In production the app already connects to Postgres as a non-superuser role, so
  * RLS applies directly. In the PGlite test harness the only role is a superuser
  * (which bypasses RLS), so tests set DB_LOCAL_ROLE to drop to a NOSUPERUSER role
- * per transaction and exercise the real policies. No-op when the env var is unset.
+ * per transaction and exercise the real policies. Empty when the env var is unset.
  */
-async function applyLocalRole(tx: Tx): Promise<void> {
+function localRole(): string | null {
   const role = process.env.DB_LOCAL_ROLE;
-  if (!role) return;
+  if (!role) return null;
   if (!/^[a-z_][a-z0-9_]*$/.test(role)) throw new Error(`Invalid DB_LOCAL_ROLE: ${role}`);
-  await tx.execute(sql`set local role ${sql.identifier(role)}`);
+  return role;
+}
+
+/**
+ * Apply the transaction's security context in ONE statement (one network round
+ * trip) instead of one per setting. set_config(..., true) is transaction-local,
+ * exactly like SET LOCAL. The role is set first so the tenant settings below it
+ * are written by — and scoped to — the restricted role's transaction.
+ */
+async function applyContext(tx: Tx, settings: Array<[string, string]>): Promise<void> {
+  const role = localRole();
+  const all: Array<[string, string]> = role ? [["role", role], ...settings] : settings;
+  const calls = all.map(([k, v]) => sql`set_config(${k}, ${v}, true)`);
+  await tx.execute(sql`select ${sql.join(calls, sql`, `)}`);
 }
 
 /** Run `fn` scoped to one workspace. RLS filters every statement to it. */
@@ -49,10 +57,11 @@ export async function withWorkspace<T>(
   fn: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (tx: Tx) => {
-    await applyLocalRole(tx);
-    await setLocal(tx, "app.bypass", "off");
-    await setLocal(tx, "app.workspace_id", ctx.workspaceId);
-    await setLocal(tx, "app.user_id", ctx.userId ?? "");
+    await applyContext(tx, [
+      ["app.bypass", "off"],
+      ["app.workspace_id", ctx.workspaceId],
+      ["app.user_id", ctx.userId ?? ""],
+    ]);
     return fn(tx);
   });
 }
@@ -63,8 +72,7 @@ export async function withWorkspace<T>(
  */
 export async function asService<T>(db: AnyPgDb, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return db.transaction(async (tx: Tx) => {
-    await applyLocalRole(tx);
-    await setLocal(tx, "app.bypass", "on");
+    await applyContext(tx, [["app.bypass", "on"]]);
     return fn(tx);
   });
 }

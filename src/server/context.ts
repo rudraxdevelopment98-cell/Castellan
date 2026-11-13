@@ -1,3 +1,4 @@
+import { requestCache as cache } from "./requestCache";
 import { and, eq } from "drizzle-orm";
 import { memberships, workspaces } from "./db/schema";
 import { asService, getDb } from "./db/client";
@@ -18,7 +19,13 @@ export interface WorkspaceMembership {
   timezone: string;
 }
 
-export async function getMembershipsForUser(userId: string): Promise<WorkspaceMembership[]> {
+export interface ResolvedWorkspace extends WorkspaceMembership {
+  /** Workspace policy: every member must use two-factor sign-in (AUDIT H7). */
+  mfaRequired: boolean;
+}
+
+/** Memoised per request (React cache): layout and page share one lookup. */
+export const getMembershipsForUser = cache(async (userId: string): Promise<WorkspaceMembership[]> => {
   const db = await getDb();
   return asService(db, async (tx) => {
     const rows = await tx
@@ -40,13 +47,16 @@ export async function getMembershipsForUser(userId: string): Promise<WorkspaceMe
       timezone: r.timezone,
     }));
   });
-}
+});
 
-/** Verify the user belongs to the workspace with this slug; return membership. */
-export async function resolveWorkspaceForUser(
+/**
+ * Verify the user belongs to the workspace with this slug; return membership.
+ * Memoised per request (React cache): layout and page share one lookup.
+ */
+export const resolveWorkspaceForUser = cache(async (
   userId: string,
   slug: string,
-): Promise<WorkspaceMembership | null> {
+): Promise<ResolvedWorkspace | null> => {
   const db = await getDb();
   return asService(db, async (tx) => {
     const [row] = await tx
@@ -56,6 +66,7 @@ export async function resolveWorkspaceForUser(
         name: workspaces.name,
         role: memberships.role,
         timezone: workspaces.timezone,
+        securityPolicy: workspaces.securityPolicy,
       })
       .from(memberships)
       .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
@@ -68,9 +79,10 @@ export async function resolveWorkspaceForUser(
       name: row.name as string,
       role: row.role as Role,
       timezone: row.timezone as string,
+      mfaRequired: Boolean((row.securityPolicy as { mfaRequired?: boolean } | null)?.mfaRequired),
     };
   });
-}
+});
 
 /** Ensure a slug is unique by suffixing -2, -3, … when taken. */
 export async function uniqueWorkspaceSlug(seed: string): Promise<string> {

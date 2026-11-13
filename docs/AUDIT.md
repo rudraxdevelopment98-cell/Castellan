@@ -17,7 +17,7 @@ Legend for status: `OPEN` (not yet fixed), `FIXED <commit>`, `DECISION NEEDED`.
 | --- | --- | --- |
 | Critical | 5 | C1, C2, C3, C4, C5 |
 | High | 14 | H1–H14 |
-| Medium | 10 | M1–M10 |
+| Medium | 15 | M1–M15 |
 | Low | 5 | L1–L5 |
 
 _Counts are as first audited; findings discovered during the fix phase (C3, C4, M10) are added in place._
@@ -297,6 +297,18 @@ screen after the same minimum delay; the owner of an existing address is emailed
 at the app layer; it is not). The database is tenant-isolated and encrypted at rest by the provider, but a
 database read (backup, support query) would let the reader generate codes. Fix: AES-256-GCM with a key
 from a new `ENCRYPTION_KEY` environment variable, migrating existing secrets. Needs a key the owner adds.
+
+### M15 — Clicks felt dead: slow pages with no visible response — FIXED (M15 commit)
+Found from user reports ("one click gives no response"). Causes: the app servers ran in the US (`iad1`)
+while the database is in Ireland (`eu-west-1`), so every database round trip crossed the Atlantic; each
+transaction spent up to four extra round trips on setup (role + one `set_config` per setting); the layout
+and the page each looked up the session and workspace separately; every request rewrote
+`sessions.last_seen_at`; and most workspace buttons and links showed nothing while the server worked.
+Fix: functions pinned to `dub1` (Dublin) in `vercel.json`; the transaction context is applied in ONE
+statement (still role first, still transaction-local — isolation tests unchanged and new tests assert the
+role and every setting); session, membership and workspace lookups are memoised per request; the MFA
+policy rides on the workspace lookup; `last_seen_at` is written at most every 5 minutes; a loading
+skeleton for workspace pages, a pending dot on nav links, and pending/disabled state on every form button.
 
 ---
 
