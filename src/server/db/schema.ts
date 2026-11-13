@@ -235,6 +235,8 @@ export const memberships = pgTable(
     // Custom per-object permission overrides (cloned/edited role), spec custom_roles.
     permissionOverrides: jsonb("permission_overrides"),
     guestExpiresAt: timestamp("guest_expires_at", { withTimezone: true }),
+    // The morning email of what's due in this workspace; each member can turn it off.
+    briefEmail: boolean("brief_email").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

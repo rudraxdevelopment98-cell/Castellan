@@ -207,3 +207,14 @@ export async function acceptInviteAction(formData: FormData): Promise<void> {
   }
   redirect(target);
 }
+
+/** Turn the morning email of what's due on or off, for this member only. */
+export async function setBriefEmailAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const slug = String(formData.get("slug") ?? "");
+  const membership = await resolveWorkspaceForUser(user.id, slug);
+  if (!membership) redirect("/signin");
+  const { setBriefEmail } = await import("@/server/brief");
+  await setBriefEmail({ workspaceId: membership.workspaceId, userId: user.id, on: formData.get("on") === "1" });
+  redirect(`/w/${slug}/today#brief`);
+}

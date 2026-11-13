@@ -93,3 +93,56 @@ export function invite(link: string, workspaceName: string, inviterName: string 
     text: `${lead} to join ${workspaceName} on Castellan as ${role}.\nThe invitation is for this email address only and expires in 7 days.\n\n${link}`,
   };
 }
+
+export interface BriefItem {
+  title: string;
+  where: string;
+  due: string; // already formatted, e.g. "10 Oct 2027 · overdue by 3 days"
+}
+
+export interface BriefSections {
+  overdue: BriefItem[];
+  dueToday: BriefItem[];
+  startSoon: BriefItem[];
+  /** Monday only: everything due in the coming week. */
+  thisWeek?: BriefItem[];
+}
+
+/** The morning email. Plain lists, most urgent first; nothing decorative. */
+export function dailyBrief(input: {
+  workspaceName: string;
+  dateLabel: string;
+  todayUrl: string;
+  settingsUrl: string;
+  sections: BriefSections;
+}): RenderedEmail {
+  const { overdue, dueToday, startSoon, thisWeek } = input.sections;
+  const parts: string[] = [];
+  if (overdue.length) parts.push(`${overdue.length} overdue`);
+  if (dueToday.length) parts.push(`${dueToday.length} due today`);
+  if (startSoon.length) parts.push(`${startSoon.length} to start`);
+  const summary = parts.join(", ") || "nothing urgent";
+
+  const list = (heading: string, items: BriefItem[], tone: string) =>
+    items.length === 0
+      ? ""
+      : `<h2 style="font-size:15px;margin:20px 0 6px;color:${tone}">${escapeHtml(heading)} (${items.length})</h2>
+<ul style="margin:0;padding-left:18px">${items
+          .slice(0, 25)
+          .map((i) => `<li style="margin:4px 0"><strong>${escapeHtml(i.title)}</strong> · ${escapeHtml(i.where)}<br><span style="color:#5b6675;font-size:13px">${escapeHtml(i.due)}</span></li>`)
+          .join("")}</ul>${items.length > 25 ? `<p style="font-size:13px;color:#5b6675">…and ${items.length - 25} more.</p>` : ""}`;
+  const textList = (heading: string, items: BriefItem[]) =>
+    items.length === 0 ? "" : `\n${heading} (${items.length})\n${items.slice(0, 25).map((i) => `- ${i.title} · ${i.where} · ${i.due}`).join("\n")}\n`;
+
+  return {
+    subject: `${input.workspaceName}: ${summary} — ${input.dateLabel}`,
+    html: layout(
+      `${input.dateLabel} · ${input.workspaceName}`,
+      `<p>Here is what needs attention today: <strong>${escapeHtml(summary)}</strong>.</p>
+${list("Overdue", overdue, "#a8412e")}${list("Due today", dueToday, "#b07a1f")}${list("Good to start", startSoon, "#2e5b4f")}${thisWeek ? list("Coming up this week", thisWeek, "#2e5b4f") : ""}
+${button(input.todayUrl, "Open Today")}
+<p style="font-size:12px;color:#5b6675">You get this because you're a member of ${escapeHtml(input.workspaceName)}. Turn it off on the Today page: ${escapeHtml(input.settingsUrl)}</p>`,
+    ),
+    text: `${input.dateLabel} · ${input.workspaceName}\nWhat needs attention today: ${summary}.\n${textList("Overdue", overdue)}${textList("Due today", dueToday)}${textList("Good to start", startSoon)}${thisWeek ? textList("Coming up this week", thisWeek) : ""}\nOpen Today: ${input.todayUrl}\n\nTurn this email off on the Today page: ${input.settingsUrl}`,
+  };
+}

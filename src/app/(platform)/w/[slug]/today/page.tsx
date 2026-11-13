@@ -5,7 +5,8 @@ import { resolveWorkspaceForUser } from "@/server/context";
 import { getDb } from "@/server/db/client";
 import { buildTodayPlan, type ObligationView } from "@/server/today";
 import { formatUkDate, diffDays, todayInZone } from "@/lib/rules/dates";
-import { regenerateObligationsAction } from "../../../actions";
+import { regenerateObligationsAction, setBriefEmailAction } from "../../../actions";
+import { getBriefEmail } from "@/server/brief";
 
 function relative(due: string | null, today: string): string {
   if (!due) return "watch";
@@ -34,6 +35,7 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
   const today = todayInZone(membership.timezone);
   const plan = await buildTodayPlan(db, { workspaceId: membership.workspaceId, actorUserId: user.id, today });
   const lines = brief(plan);
+  const briefOn = await getBriefEmail({ workspaceId: membership.workspaceId, userId: user.id });
 
   const Section = ({ title, items, tone }: { title: string; items: ObligationView[]; tone?: "overdue" }) =>
     items.length === 0 ? null : (
@@ -78,12 +80,23 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
         <div className="rounded-panel border border-rule bg-surface px-4 py-3"><div className={`tnum text-title font-semibold ${plan.counts.overdue ? "text-overdue" : "text-ink"}`}>{plan.counts.overdue}</div><div className="text-meta text-ink-muted">Overdue</div></div>
       </div>
 
-      <section className="overflow-hidden rounded-panel border border-rule bg-surface">
+      <section id="brief" className="overflow-hidden rounded-panel border border-rule bg-surface">
         <div className="border-b border-rule px-4 py-2.5"><h2 className="text-section font-semibold text-ink">Morning brief</h2></div>
         <div className="px-4 py-3 text-body">
           <p className="font-medium text-ink">Good morning. {plan.counts.total === 0 ? "Nothing needs your attention today." : `${plan.counts.total} thing${plan.counts.total === 1 ? "" : "s"} today, ${plan.counts.overdue} overdue.`}</p>
           <ul className="mt-2 space-y-1 text-ink-muted">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
-          <p className="mt-3 text-meta text-ink-muted">One digest — sent 07:30 to email, WhatsApp and push in production.</p>
+          <form action={setBriefEmailAction} className="mt-3 flex flex-wrap items-center gap-3 border-t border-rule pt-3">
+            <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="on" value={briefOn ? "0" : "1"} />
+            <span className="text-meta text-ink-muted">
+              {briefOn
+                ? `Emailed to ${user.email} each morning when something is due.`
+                : "The morning email is off for you in this workspace."}
+            </span>
+            <button className="rounded-ctl border border-rule px-3 py-1.5 text-table text-ink hover:bg-canvas">
+              {briefOn ? "Turn off the email" : "Turn on the email"}
+            </button>
+          </form>
         </div>
       </section>
 

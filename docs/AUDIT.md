@@ -165,7 +165,7 @@ acceptance test the brief singles out (a member on 50 properties must not reach 
 - **Proposed fix:** Add a `headers()` block (or middleware) with a strict CSP, HSTS, `nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY` / `frame-ancestors 'none'`.
 
-### H9 — Notifications / daily brief delivery unimplemented — OPEN
+### H9 — Notifications / daily brief delivery unimplemented — FIXED (H9 commit): daily email; WhatsApp/push not built (see report)
 - **Files:** none (no mailer, no scheduler, no delivery log).
 - **What is wrong:** The product's promise ("every renewal becomes a daily task / brief") has no delivery
   mechanism. `.env.example` lists `RESEND_API_KEY`, Twilio, web-push, none wired.

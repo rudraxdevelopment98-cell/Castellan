@@ -50,6 +50,13 @@
       "when": 1794528749123,
       "tag": "0006_grandfather_verified_users",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794564120739,
+      "tag": "0007_parallel_king_bedlam",
+      "breakpoints": true
     }
   ]
 }

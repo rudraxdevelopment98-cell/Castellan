@@ -1,0 +1,1 @@
+ALTER TABLE "memberships" ADD COLUMN "brief_email" boolean DEFAULT true NOT NULL;
